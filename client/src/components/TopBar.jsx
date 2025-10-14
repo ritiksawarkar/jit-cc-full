@@ -1,13 +1,27 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useCompilerStore } from "../store/useCompilerStore";
 import { motion } from "framer-motion";
 import RunButtons from "./RunButtons";
-import { LANGUAGES, THEMES } from "../lib/languageMap";
+import { LANGUAGES } from "../lib/languageMap";
 import { Code2 } from "lucide-react";
 
 export default function TopBar() {
-  const { languageId, setLanguageId, theme, setTheme, setSource } =
+  const { languageId, setLanguageId, theme, setTheme, setSource, currentUser, tabs, selectTab, goToMatch } =
     useCompilerStore();
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [scope, setScope] = useState("files"); // files | code
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const searchRef = useRef(null);
+  const userInitials = currentUser?.name
+    ? currentUser.name
+        .split(" ")
+        .filter(Boolean)
+        .map((part) => part[0]?.toUpperCase() ?? "")
+        .join("")
+        .slice(0, 2) || currentUser.name.slice(0, 2).toUpperCase()
+    : "";
 
   const helloWorldCodes = {
     45: `section .text
@@ -148,11 +162,113 @@ int main() {
 end.`,
   };
 
+
   const handleLanguageChange = (e) => {
     const newLanguageId = Number(e.target.value);
+    // Only change the selected language here. Tab creation and source population
+    // are handled by the EditorPanel/store to avoid conflicting rapid updates.
     setLanguageId(newLanguageId);
-    setSource(helloWorldCodes[newLanguageId] || "");
   };
+
+  // Search helpers (scope-aware)
+  const searchDebounceRef = React.useRef(null);
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    searchDebounceRef.current = setTimeout(() => {
+      const trimmed = query.trim();
+      if (!trimmed) {
+        setSuggestions((prev) => (prev.length ? [] : prev));
+        setIsOpen((prev) => (prev ? false : prev));
+        setActiveIndex((prev) => (prev !== -1 ? -1 : prev));
+        return;
+      }
+      const q = trimmed.toLowerCase();
+      if (scope === "files") {
+        const files = (tabs || []).filter((t) => t.name.toLowerCase().includes(q)).slice(0, 12);
+        const newSuggestions = files.map((f) => ({ type: "file", item: f }));
+        setSuggestions((prev) => {
+          const same = prev.length === newSuggestions.length && prev.every((p, i) => p.item.id === newSuggestions[i].item.id);
+          return same ? prev : newSuggestions;
+        });
+        setIsOpen(newSuggestions.length > 0);
+        setActiveIndex(newSuggestions.length > 0 ? 0 : -1);
+      } else if (scope === "code") {
+        const results = [];
+        const limit = 12;
+        for (const t of tabs || []) {
+          const content = (t.content || "").toLowerCase();
+          let from = 0;
+          while (results.length < limit) {
+            const found = content.indexOf(q, from);
+            if (found === -1) break;
+            const before = (t.content || "").slice(0, found);
+            const lineNumber = before.split("\n").length;
+            const snippet = (t.content || "").split("\n")[lineNumber - 1] || "";
+            results.push({ tab: t, lineNumber, snippet });
+            from = found + q.length;
+          }
+          if (results.length >= limit) break;
+        }
+        const newSuggestions = results.map((r) => ({ type: "code", item: r }));
+        setSuggestions((prev) => {
+          const same = prev.length === newSuggestions.length && prev.every((p, i) => {
+            const a = p.type === newSuggestions[i].type && (p.item.tab?.id || p.item.item?.id || p.item.id) === (newSuggestions[i].item.tab?.id || newSuggestions[i].item.item?.id || newSuggestions[i].item.id);
+            return a;
+          });
+          return same ? prev : newSuggestions;
+        });
+        setIsOpen(newSuggestions.length > 0);
+        setActiveIndex(newSuggestions.length > 0 ? 0 : -1);
+      }
+    }, 120);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [query, scope, tabs]);
+
+  const chooseSuggestion = (entry) => {
+    if (!entry) return;
+    if (entry.type === "file") {
+      const f = entry.item;
+      if (selectTab) selectTab(f.id);
+    } else if (entry.type === "code") {
+      const r = entry.item;
+      if (goToMatch) goToMatch(r.tab.id, r.lineNumber, 1);
+    }
+    setQuery("");
+    setSuggestions([]);
+    setIsOpen(false);
+    setActiveIndex(-1);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!isOpen) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const pick = suggestions[activeIndex];
+      if (pick) chooseSuggestion(pick);
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    const onDocClick = (ev) => {
+      if (searchRef.current && !searchRef.current.contains(ev.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   return (
     <div className="sticky top-0 z-10">
@@ -174,37 +290,103 @@ end.`,
         </div>
 
         <div className="flex items-center gap-3">
+          {/* user area intentionally hidden (no guest message, no name/email/logo) */}
+          <div className="hidden sm:block" aria-hidden="true" />
+
+          <div className="relative" ref={searchRef}>
+            <div className="flex items-center gap-2">
+              <div className="bg-white/5 text-xs rounded px-2 py-1 text-white/80">
+                <select
+                  value={scope}
+                  onChange={(e) => setScope(e.target.value)}
+                  className="bg-transparent text-white/80 outline-none relative z-50"
+                  aria-label="Search scope"
+                >
+                  <option value="files" style={{ color: '#000' }}>Files</option>
+                  <option value="code" style={{ color: '#000' }}>Code</option>
+                </select>
+              </div>
+              <input
+                aria-label="Search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setIsOpen(suggestions.length > 0)}
+                placeholder={scope === "files" ? "Search open files..." : "Search code in open files..."}
+                className="hidden sm:block w-64 rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-white outline-none placeholder:text-white/50 focus:border-cyan-400/60"
+              />
+            </div>
+            {isOpen && (
+              <ul className="absolute right-0 mt-2 w-96 max-h-60 overflow-auto rounded-lg border border-white/10 bg-black/90 shadow-2xl">
+                {suggestions.map((s, idx) => {
+                  if (s.type === "language") {
+                    const item = s.item;
+                    return (
+                      <li
+                        key={`lang-${item.id}`}
+                        onMouseEnter={() => setActiveIndex(idx)}
+                        onClick={() => chooseSuggestion(s)}
+                        className={`px-3 py-2 text-sm cursor-pointer hover:bg-white/5 ${
+                          idx === activeIndex ? "bg-white/5 text-cyan-200" : "text-white/70"
+                        }`}
+                      >
+                        {item.label}
+                      </li>
+                    );
+                  }
+                  if (s.type === "file") {
+                    const f = s.item;
+                    return (
+                      <li
+                        key={`file-${f.id}`}
+                        onMouseEnter={() => setActiveIndex(idx)}
+                        onClick={() => chooseSuggestion(s)}
+                        className={`px-3 py-2 text-sm cursor-pointer hover:bg-white/5 ${
+                          idx === activeIndex ? "bg-white/5 text-cyan-200" : "text-white/70"
+                        }`}
+                      >
+                        <div className="font-semibold">{f.name}</div>
+                        <div className="text-xs text-white/50">Open file</div>
+                      </li>
+                    );
+                  }
+                  if (s.type === "code") {
+                    const r = s.item;
+                    return (
+                      <li
+                        key={`code-${idx}-${r.lineNumber}`}
+                        onMouseEnter={() => setActiveIndex(idx)}
+                        onClick={() => chooseSuggestion(s)}
+                        className={`px-3 py-2 text-sm cursor-pointer hover:bg-white/5 ${
+                          idx === activeIndex ? "bg-white/5 text-cyan-200" : "text-white/70"
+                        }`}
+                      >
+                        <div className="font-semibold">{r.tab.name} — line {r.lineNumber}</div>
+                        <div className="text-xs text-white/50 font-mono truncate">{r.snippet.trim()}</div>
+                      </li>
+                    );
+                  }
+                  return null;
+                })}
+              </ul>
+            )}
+          </div>
+
+          {/* Timer moved to InputPanel */}
+
           <select
-            className="bg-black/50 backdrop-blur-xl border border-white/30 rounded-lg px-3 py-2 text-sm text-white hover:bg-white/10 transition-colors"
+            className="hidden sm:block bg-black/50 backdrop-blur-xl border border-white/30 rounded-lg px-3 py-2 text-sm text-white hover:bg-white/10 transition-colors relative z-50"
             value={languageId}
             onChange={handleLanguageChange}
           >
             {LANGUAGES.map((l) => (
-              <option
-                key={l.id}
-                value={l.id}
-                className="bg-gray-900 text-white"
-              >
+              <option key={l.id} value={l.id} style={{ color: '#000' }}>
                 {l.label}
               </option>
             ))}
           </select>
 
-          <select
-            className="bg-black/50 backdrop-blur-xl border border-white/30 rounded-lg px-3 py-2 text-sm text-white hover:bg-white/10 transition-colors"
-            value={theme}
-            onChange={(e) => setTheme(e.target.value)}
-          >
-            {THEMES.map((t) => (
-              <option
-                key={t.id}
-                value={t.id}
-                className="bg-gray-900 text-white"
-              >
-                {t.label}
-              </option>
-            ))}
-          </select>
+          {/* Theme selector removed from TopBar (settings still control themes) */}
 
           <RunButtons />
         </div>

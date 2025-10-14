@@ -1,0 +1,20 @@
+[
+  {
+    "id": "u-demo",
+    "name": "Demo User",
+    "email": "demo@example.com",
+    "passwordHash": "$2a$10$7EqJtq98hPqEX7fNZaFWoOhi5vps/9gV.rEzg1P3eyF2F5d6SZOfe"
+  },
+  {
+    "id": "u-1760464014843",
+    "name": "Ritik sawarkar",
+    "email": "ritiksawarkar06@gmail.com",
+    "passwordHash": "$2a$10$a0EJ.UqMEICS4tU.wlkyIOhsGQE2kFdxq5McQXxQyo2LBrv4ne3lC"
+  },
+  {
+    "id": "u-1760470740997",
+    "name": "Ritik sawarkar",
+    "email": "ritiksawarkar07@gmail.com",
+    "passwordHash": "$2a$10$k9UPhy4MBmD7gbRVhDf3JebRoncWDzcFPEe9Q/9OLZeMmpMhm5dJ2"
+  }
+]
