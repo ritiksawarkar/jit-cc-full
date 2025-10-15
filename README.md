@@ -10,3 +10,5 @@ docker-compose up -d db redis
 
 docker-compose up -d
 ```
+
+Todo -> Use MongoDB Atlas
