@@ -2,6 +2,34 @@ import { create } from "zustand";
 import { getMonacoLanguage, getDefaultFileNameForMonaco } from "../lib/languageUtils";
 import { explainError as apiExplainError } from "../services/api";
 
+// Simple heuristic fallback for common error messages across languages.
+function explainFallback(stderr, compile_output, languageId) {
+  const text = `${stderr || ''}\n${compile_output || ''}`.toLowerCase();
+  // Common JavaScript runtime errors
+  if (text.includes('referenceerror') || text.includes('is not defined')) {
+    return 'ReferenceError: A variable or function is used before it is defined. Check for typos, missing imports, or scope issues.';
+  }
+  if (text.includes('syntaxerror') || text.includes('unexpected token')) {
+    return 'SyntaxError: There is likely a missing or extra token in your code (bracket, parenthesis, comma). Check the nearby line for syntax issues.';
+  }
+  if (text.includes('typeerror')) {
+    return 'TypeError: An operation was performed on a value of the wrong type (e.g., calling a non-function). Inspect the value that caused the error.';
+  }
+  // Common Python hints
+  if (text.includes('indentationerror') || text.includes('expected an indented block')) {
+    return 'IndentationError: Python expects consistent indentation. Make sure spaces/tabs are consistent and blocks are indented properly.';
+  }
+  if (text.includes('nameerror') && text.includes('name')) {
+    return 'NameError: A variable or function name is not defined in scope. Check for typos or missing declarations.';
+  }
+  // Compilation errors (C/C++/Java)
+  if (text.includes('error:') || text.includes('undefined reference')) {
+    return 'Compilation error: Check the compiler output for missing symbols, mismatched types, or missing headers. See the compile output above for details.';
+  }
+  // Fallback generic hint
+  return 'No specific heuristic was matched. Inspect the stderr and compile output above. If available, enable AI suggestions on the server for richer explanations.';
+}
+
 const CURRENT_SESSION_STORAGE_KEY = "esm-compiler-session";
 
 const loadStoredSession = () => {
@@ -170,9 +198,19 @@ solve();`, // Default code
       set({ explainLoading: true, explanation: null });
       try {
         const resp = await apiExplainError({ language: state.languageId, stderr: String(stderr), compile_output: String(compile_output), context: res.stdout || "" });
-        set({ explanation: resp?.suggestions || String(resp || "No explanation returned.") });
+        const suggested = resp?.suggestions;
+        if (suggested && String(suggested).trim()) {
+          set({ explanation: suggested });
+        } else {
+          // fallback to heuristic hints
+          const hint = explainFallback(String(stderr), String(compile_output), state.languageId);
+          set({ explanation: hint });
+        }
       } catch (err) {
-        set({ explanation: String(err?.message || err || "Failed to get explanation") });
+        // API failed — produce a heuristic explanation instead of failing silently
+        const hint = explainFallback(String(stderr), String(compile_output), state.languageId);
+        set({ explanation: `${String(err?.message || err || "AI request failed")}
+\n\nFallback hint:\n${hint}` });
       }
     } catch (e) {
       // ignore

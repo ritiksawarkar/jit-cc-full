@@ -5,7 +5,7 @@ import { useCompilerStore } from "../store/useCompilerStore";
 // InputPanel: shows stdin textarea and a Timer control in the header's right corner
 
 export default function InputPanel() {
-  const { stdin, setStdin, explainCurrentError, setOutputPanelView } = useCompilerStore();
+  const { stdin, setStdin } = useCompilerStore();
   const [timerSeconds, setTimerSeconds] = React.useState(0);
   const [timerRunning, setTimerRunning] = React.useState(false);
 
@@ -34,18 +34,6 @@ export default function InputPanel() {
               <option key={h} value={h} style={{ color: '#000' }}>{h}h</option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                setOutputPanelView("explain");
-                await explainCurrentError();
-              } catch (e) {}
-            }}
-            className="rounded px-2 py-1 bg-white/6 hover:bg-white/10 text-white text-sm transition"
-          >
-            Explain Error
-          </button>
           {timerRunning && (
             <Timer initialSeconds={timerSeconds} running={timerRunning} onFinish={() => { setTimerRunning(false); setTimerSeconds(0); }} />
           )}
