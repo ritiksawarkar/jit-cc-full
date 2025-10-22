@@ -36,8 +36,18 @@ export async function executeCode({ language_id, source_code, stdin }) {
 
 // AI function with improved response for GitHub Copilot-like behavior
 export async function getAISuggestions(prompt) {
-  const res = await API.post("/api/ai-suggestions", { code: prompt });
-  return res.data;
+  try {
+    const res = await API.post("/api/ai-suggestions", { code: prompt });
+    return res.data;
+  } catch (err) {
+    // Normalize axios cancelation / error objects so caller gets a clear Error
+    if (err && err.__CANCEL__) {
+      throw { type: 'cancelation', msg: err.message || 'request canceled' };
+    }
+    // Re-throw a simple Error where possible
+    const message = err?.response?.data?.error || err.message || JSON.stringify(err);
+    throw new Error(message);
+  }
 }
 
 // Explain an error or compile output using the AI endpoint. The server expects
@@ -68,7 +78,88 @@ export async function fetchLeaderboard(limit = 20) {
   return res.data;
 }
 
+export async function getSettings() {
+  const res = await API.get('/api/settings');
+  return res.data;
+}
+
+export async function setProjectRoot(rootPath) {
+  const res = await API.post('/api/settings/root', { rootPath });
+  return res.data;
+}
+
 export async function submitScore(score) {
   const res = await API.post(`/api/leaderboard`, { score });
+  return res.data;
+}
+
+export async function getProjectStructure() {
+  const res = await API.get("/api/project-structure");
+  return res.data;
+}
+
+export async function readFile(filePath) {
+  const res = await API.post("/api/read-file", { filePath });
+  return res.data;
+}
+
+export async function saveFile(filePath, content) {
+  const res = await API.put("/api/save-file", { filePath, content });
+  return res.data;
+}
+
+export async function deleteFile(filePath) {
+  const encode = (s) => {
+    // Browser-safe base64 encoding (handles UTF-8)
+    if (typeof window !== "undefined" && typeof window.btoa === "function") {
+      return window.btoa(unescape(encodeURIComponent(s)));
+    }
+    if (typeof Buffer !== "undefined") {
+      return Buffer.from(s).toString("base64");
+    }
+    throw new Error("No base64 encoder available");
+  };
+  const encodedPath = encode(filePath);
+  const res = await API.delete(`/api/files/${encodeURIComponent(encodedPath)}`);
+  return res.data;
+}
+
+export async function renameFile(oldPath, newName) {
+  const encode = (s) => {
+    if (typeof window !== "undefined" && typeof window.btoa === "function") {
+      return window.btoa(unescape(encodeURIComponent(s)));
+    }
+    if (typeof Buffer !== "undefined") {
+      return Buffer.from(s).toString("base64");
+    }
+    throw new Error("No base64 encoder available");
+  };
+  const encodedPath = encode(oldPath);
+  const res = await API.put(`/api/files/rename/${encodeURIComponent(encodedPath)}`, { newName });
+  return res.data;
+}
+
+export async function createFile(filePath, content = "") {
+  const res = await API.post("/api/files/create", { filePath, content });
+  return res.data;
+}
+
+export async function createFolder(folderPath) {
+  const res = await API.post(`/api/folders/create`, { folderPath });
+  return res.data;
+}
+
+export async function execCommand({ command, cwd, input, timeoutMs } = {}) {
+  const res = await API.post(`/api/exec`, { command, cwd, input, timeoutMs });
+  return res.data;
+}
+
+export async function resolveDependencies({ language = 'auto', source = '', scanProject = false, dryRun = true, action = 'detect' } = {}) {
+  const res = await API.post('/api/resolve-dependencies', { language, source, scanProject, dryRun, action });
+  return res.data;
+}
+
+export async function searchFiles(query, maxResults = 50) {
+  const res = await API.post("/api/search", { query, maxResults });
   return res.data;
 }

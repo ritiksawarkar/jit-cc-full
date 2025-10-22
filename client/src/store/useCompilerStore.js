@@ -98,7 +98,7 @@ solve();`, // Default code
   explanation: null,
   explainLoading: false,
   editorFontSize: 14,
-  showMinimap: false,
+  showMinimap: true,
   wordWrap: "off",
   showLineNumbers: true,
   tabSize: 2,
@@ -175,6 +175,43 @@ solve();`, // Default code
     }
   })(),
 
+  // Auto-save settings (persisted)
+  autoSaveEnabled: (() => {
+    try {
+      if (typeof window === 'undefined') return true;
+      const raw = window.localStorage.getItem('esm-auto-save');
+      if (!raw) return true;
+      const parsed = JSON.parse(raw);
+      return !!parsed?.enabled;
+    } catch {
+      return true;
+    }
+  })(),
+  autoSaveInterval: (() => {
+    try {
+      if (typeof window === 'undefined') return 5; // seconds
+      const raw = window.localStorage.getItem('esm-auto-save');
+      if (!raw) return 5;
+      const parsed = JSON.parse(raw);
+      return Number(parsed?.interval ?? 5) || 5;
+    } catch {
+      return 5;
+    }
+  })(),
+
+  // Recently opened files: array of { path, name, timestamp }
+  recentlyOpened: (() => {
+    try {
+      if (typeof window === 'undefined') return [];
+      const raw = window.localStorage.getItem('esm-recently-opened');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })(),
+
   setLanguageId: (id) => set({ languageId: id }),
   setTheme: (t) => set({ theme: t }),
   setSource: (s) => set({ source: s }),
@@ -238,6 +275,50 @@ solve();`, // Default code
       }
     } catch {}
     set({ exportAllFiles: !!val });
+  },
+  setAutoSaveEnabled: (enabled) => {
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = window.localStorage.getItem('esm-auto-save');
+        const parsed = raw ? JSON.parse(raw) : {};
+        parsed.enabled = !!enabled;
+        window.localStorage.setItem('esm-auto-save', JSON.stringify(parsed));
+      }
+    } catch {}
+    set({ autoSaveEnabled: !!enabled });
+  },
+  setAutoSaveInterval: (seconds) => {
+    const v = Number(seconds) || 5;
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = window.localStorage.getItem('esm-auto-save');
+        const parsed = raw ? JSON.parse(raw) : {};
+        parsed.interval = v;
+        window.localStorage.setItem('esm-auto-save', JSON.stringify(parsed));
+      }
+    } catch {}
+    set({ autoSaveInterval: v });
+  },
+  addRecentlyOpened: (path, name) => {
+    try {
+      const state = useCompilerStore.getState();
+      const now = new Date().toISOString();
+      // Remove if already exists, then prepend
+      const filtered = (state.recentlyOpened || []).filter((r) => r.path !== path);
+      const updated = [{ path, name, timestamp: now }, ...filtered].slice(0, 10); // Keep last 10
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('esm-recently-opened', JSON.stringify(updated));
+      }
+      set({ recentlyOpened: updated });
+    } catch {}
+  },
+  clearRecentlyOpened: () => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('esm-recently-opened');
+      }
+    } catch {}
+    set({ recentlyOpened: [] });
   },
   // check and reset daily counter if date changed
   _ensureDaily: () => {
@@ -304,11 +385,11 @@ solve();`, // Default code
       const newTab = { id: `tab-${next}`, name, content: "", isCustomName: false, languageId: state.languageId };
       return { tabs: [...state.tabs, newTab], activeTabId: newTab.id, nextTabCounter: next, source: "" , languageId: state.languageId, leaderboardTick: (state.leaderboardTick || 0) + 1 };
     }),
-  createTab: ({ name, content = "", isCustomName = false }) =>
+  createTab: ({ name, content = "", isCustomName = false, path = undefined }) =>
     set((state) => {
       const next = state.nextTabCounter + 1;
       const safeName = name || getDefaultFileNameForMonaco(getMonacoLanguage(state.languageId));
-      const newTab = { id: `tab-${next}`, name: safeName, content: content ?? "", isCustomName, languageId: state.languageId };
+      const newTab = { id: `tab-${next}`, name: safeName, content: content ?? "", isCustomName, languageId: state.languageId, path };
       return { tabs: [...state.tabs, newTab], activeTabId: newTab.id, nextTabCounter: next, source: content ?? "", languageId: state.languageId, leaderboardTick: (state.leaderboardTick || 0) + 1 };
     }),
   selectTab: (tabId) =>
@@ -320,8 +401,8 @@ solve();`, // Default code
     }),
   updateTabContent: (tabId, content) =>
     set((state) => ({ tabs: state.tabs.map((t) => (t.id === tabId ? { ...t, content } : t)) })),
-  renameTab: (tabId, newName) =>
-    set((state) => ({ tabs: state.tabs.map((t) => (t.id === tabId ? { ...t, name: newName, isCustomName: true } : t)) })),
+  renameTab: (tabId, newName, newPath) =>
+    set((state) => ({ tabs: state.tabs.map((t) => (t.id === tabId ? { ...t, name: newName, isCustomName: true, path: newPath ?? t.path } : t)) })),
   duplicateTab: (tabId) =>
     set((state) => {
       const original = state.tabs.find((t) => t.id === tabId);
@@ -385,6 +466,56 @@ solve();`, // Default code
   // bump this when an activity occurred that should refresh leaderboard views
   pokeLeaderboard: () => set((s) => ({ leaderboardTick: (s.leaderboardTick || 0) + 1 })),
   incrementRunCount: () => set((s) => ({ runCount: (s.runCount || 0) + 1, leaderboardTick: (s.leaderboardTick || 0) + 1 })),
+  
+  // Search and file operations state
+  searchQuery: "",
+  searchResults: [],
+  isSearching: false,
+  favorites: (() => {
+    try {
+      if (typeof window === 'undefined') return [];
+      const raw = window.localStorage.getItem('esm-favorites');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  })(),
+  unsavedFiles: {}, // { tabId: true/false } - tracks which tabs have unsaved changes
+  isSaving: false,
+  saveStatus: null, // 'success', 'error', null
+  
+  setSearchQuery: (q) => set({ searchQuery: q }),
+  setSearchResults: (r) => set({ searchResults: r }),
+  setIsSearching: (v) => set({ isSearching: v }),
+  
+  toggleFavorite: (filePath) => {
+    set((state) => {
+      const faves = state.favorites || [];
+      const isFav = faves.includes(filePath);
+      const updated = isFav ? faves.filter(f => f !== filePath) : [...faves, filePath];
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('esm-favorites', JSON.stringify(updated));
+        }
+      } catch {}
+      return { favorites: updated };
+    });
+  },
+  
+  isFavorite: (filePath) => {
+    const state = useCompilerStore.getState();
+    return (state.favorites || []).includes(filePath);
+  },
+  
+  setUnsavedFile: (tabId, unsaved) => {
+    set((state) => ({
+      unsavedFiles: { ...state.unsavedFiles, [tabId]: unsaved }
+    }));
+  },
+  
+  setIsSaving: (v) => set({ isSaving: v }),
+  setSaveStatus: (s) => set({ saveStatus: s }),
+  
   // Jump to a position inside a tab (selects tab then reveals in Monaco)
   goToMatch: async (tabId, lineNumber = 1, column = 1) =>
     set((state) => {

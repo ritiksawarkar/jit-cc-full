@@ -5,8 +5,6 @@
 
 change <your_password> in judge0.conf file
 
-```
 docker-compose up -d db redis
 
 docker-compose up -d
-```

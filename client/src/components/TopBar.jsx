@@ -6,7 +6,7 @@ import { LANGUAGES } from "../lib/languageMap";
 import { Code2 } from "lucide-react";
 
 export default function TopBar() {
-  const { languageId, setLanguageId, theme, setTheme, setSource, currentUser, tabs, selectTab, goToMatch } =
+  const { languageId, setLanguageId, theme, setTheme, setSource, currentUser, tabs, selectTab, goToMatch, setSearchQuery: setStoreSearchQuery } =
     useCompilerStore();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -241,6 +241,7 @@ end.`,
     setSuggestions([]);
     setIsOpen(false);
     setActiveIndex(-1);
+    try { setStoreSearchQuery(""); } catch {}
   };
 
   const handleKeyDown = (e) => {
@@ -284,7 +285,7 @@ end.`,
           </motion.div>
           <div>
             <div className="text-lg font-semibold text-white">
-              ESM Code Compiler
+              Online Code Compiler
             </div>
           </div>
         </div>
@@ -309,7 +310,10 @@ end.`,
               <input
                 aria-label="Search"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  try { setStoreSearchQuery(e.target.value); } catch {}
+                }}
                 onKeyDown={handleKeyDown}
                 onFocus={() => setIsOpen(suggestions.length > 0)}
                 placeholder={scope === "files" ? "Search open files..." : "Search code in open files..."}

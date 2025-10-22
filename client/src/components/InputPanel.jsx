@@ -1,5 +1,6 @@
 import React from "react";
 import Timer from "./Timer";
+import { Play, Pause } from "lucide-react";
 import { useCompilerStore } from "../store/useCompilerStore";
 
 // InputPanel: shows stdin textarea and a Timer control in the header's right corner
@@ -34,8 +35,27 @@ export default function InputPanel() {
               <option key={h} value={h} style={{ color: '#000' }}>{h}h</option>
             ))}
           </select>
-          {timerRunning && (
-            <Timer initialSeconds={timerSeconds} running={timerRunning} onFinish={() => { setTimerRunning(false); setTimerSeconds(0); }} />
+          {/* Show timer display whenever a timer is set; allow pausing/resuming */}
+          {timerSeconds > 0 && (
+            <div className="flex items-center gap-2">
+              <Timer
+                initialSeconds={timerSeconds}
+                running={timerRunning}
+                onFinish={() => {
+                  setTimerRunning(false);
+                  setTimerSeconds(0);
+                }}
+              />
+              <button
+                type="button"
+                aria-label={timerRunning ? "Pause timer" : "Start timer"}
+                onClick={() => setTimerRunning((s) => !s)}
+                className="p-2 rounded bg-white/5 hover:bg-white/10 transition text-white flex items-center justify-center"
+                title={timerRunning ? "Pause" : "Play"}
+              >
+                {timerRunning ? <Pause size={16} /> : <Play size={16} />}
+              </button>
+            </div>
           )}
         </div>
       </div>

@@ -1,3 +1,22 @@
+/* Extra: target common SVG shape elements to ensure visibility */
+[data-theme="light"] svg path,
+[data-theme="light"] svg circle,
+[data-theme="light"] svg rect,
+[data-theme="light"] svg polygon,
+[data-theme="light"] svg line,
+[data-theme="light"] svg polyline,
+[data-theme="light"] svg g {
+  stroke: #0f172a !important;
+  fill: #0f172a !important;
+  stroke-opacity: 1 !important;
+  fill-opacity: 1 !important;
+}
+
+/* If icons were using stroke-width 0 in some themes, make sure they're visible */
+[data-theme="light"] svg[width],
+[data-theme="light"] svg {
+  stroke-width: 1.5 !important;
+}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -67,3 +86,339 @@
   background-color: #1a1a1a;
   color: #eaece6;
 }
+
+/* Theme mappings: map editor theme selection to app-wide colors
+   - data-theme attribute is set on <html> by ThemeSync in main.jsx
+   - Tailwind's dark class is toggled for non-light themes as a fallback
+*/
+
+/* High Contrast (hc-black) - darker, higher contrast */
+[data-theme="hc-black"] .glass,
+.dark .glass {
+  @apply bg-black/70 border-white/20;
+}
+[data-theme="hc-black"] body,
+.dark body {
+  background-color: #000; /* ensure deep background */
+  color: #e6f7ff;
+}
+
+/* VS Dark - classic dark palette */
+[data-theme="vs-dark"] .glass {
+  @apply bg-gray-900/70 border-white/10;
+}
+
+/* Light - brighter UI */
+[data-theme="light"] .glass {
+  @apply bg-white/10 border-black/10;
+}
+
+/* Generic adjustments to ensure headings and panel text adapt */
+[data-theme="hc-black"] h1, [data-theme="hc-black"] h2, [data-theme="hc-black"] h3,
+[data-theme="vs-dark"] h1, [data-theme="vs-dark"] h2, [data-theme="vs-dark"] h3 {
+  color: #e6f7ff;
+}
+
+[data-theme="light"] h1, [data-theme="light"] h2, [data-theme="light"] h3 {
+  color: #111827;
+}
+
+/* Strong overrides for light theme to affect components using Tailwind dark utilities */
+[data-theme="light"] body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Panels and common dark backgrounds */
+[data-theme="light"] .bg-black\/50,
+[data-theme="light"] .bg-black\/40,
+[data-theme="light"] .bg-black\/85,
+[data-theme="light"] .bg-black\/30,
+[data-theme="light"] .bg-black\/20,
+[data-theme="light"] .bg-black\/60,
+[data-theme="light"] .bg-gray-900\/95,
+[data-theme="light"] .bg-gray-900\/80,
+[data-theme="light"] .bg-gray-900\/60,
+[data-theme="light"] .bg-gray-800 {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(15,23,42,0.06) !important;
+}
+
+[data-theme="light"] .glass {
+  background: rgba(255,255,255,0.85) !important;
+  border-color: rgba(15,23,42,0.06) !important;
+}
+
+/* Make white text dark in light mode where components used text-white */
+[data-theme="light"] .text-white,
+[data-theme="light"] .text-white\/80,
+[data-theme="light"] .text-white\/60,
+[data-theme="light"] .text-white\/70 {
+  color: #0f172a !important;
+}
+
+/* Buttons and controls */
+[data-theme="light"] .rounded-lg.border-white\/15,
+[data-theme="light"] .border-white\/15,
+[data-theme="light"] .border-white\/10 {
+  border-color: rgba(15,23,42,0.06) !important;
+}
+
+[data-theme="light"] .bg-emerald-600\/80 { background-color: #059669 !important; color: #fff !important; }
+
+/* Inputs and selects */
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background-color: #fff !important;
+  color: #0f172a !important;
+  border-color: rgba(15,23,42,0.08) !important;
+}
+
+/* Ensure tab bar and tab labels match light theme */
+[data-theme="light"] .rounded-t-lg,
+[data-theme="light"] .rounded-t-xl {
+  background-color: #fff !important;
+  color: #0f172a !important;
+  border-color: rgba(15,23,42,0.06) !important;
+}
+
+/* Specific: TopBar container */
+[data-theme="light"] .sticky.top-0 .bg-black\/50,
+[data-theme="light"] .sticky.top-0 .bg-white\/10 {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Settings modal adjustments */
+[data-theme="light"] .relative.z-10.w-full.max-w-sm.rounded-2xl.border {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(15,23,42,0.06) !important;
+}
+
+/* Explorer list items */
+[data-theme="light"] .text-white\/70,
+[data-theme="light"] .text-white\/80 {
+  color: #334155 !important;
+}
+
+/* Ensure icons inverted where necessary */
+[data-theme="light"] svg { filter: none !important; }
+
+/* File Explorer specific light-mode overrides to ensure visibility */
+[data-theme="light"] .file-explorer {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-right-color: rgba(15,23,42,0.06) !important;
+}
+
+[data-theme="light"] .file-explorer .file-explorer-content {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .file-explorer .text-xs,
+[data-theme="light"] .file-explorer .text-sm,
+[data-theme="light"] .file-explorer span,
+[data-theme="light"] .file-explorer button,
+[data-theme="light"] .file-explorer input {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .file-explorer svg {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .file-explorer .text-white\/60,
+[data-theme="light"] .file-explorer .text-white\/70,
+[data-theme="light"] .file-explorer .text-white\/80,
+[data-theme="light"] .file-explorer .text-white\/50 {
+  color: #475569 !important; /* slate-600 */
+}
+
+[data-theme="light"] .file-explorer .bg-black\/20,
+[data-theme="light"] .file-explorer .bg-black\/30,
+[data-theme="light"] .file-explorer .bg-black\/40,
+[data-theme="light"] .file-explorer .bg-black\/60 {
+  background-color: transparent !important;
+}
+
+[data-theme="light"] .file-explorer .border-white\/10,
+[data-theme="light"] .file-explorer .border-white\/5 {
+  border-color: rgba(15,23,42,0.06) !important;
+}
+
+[data-theme="light"] .file-explorer .group-hover\:opacity-100 {
+  opacity: 1 !important;
+}
+
+/* Extra strong overrides for explorer visuals in light mode */
+[data-theme="light"] .file-explorer, [data-theme="light"] .file-explorer * {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .file-explorer svg,
+[data-theme="light"] .file-explorer svg * {
+  color: #0f172a !important;
+  stroke: currentColor !important;
+  fill: currentColor !important;
+  opacity: 1 !important;
+}
+
+[data-theme="light"] .file-explorer .text-white\/60,
+[data-theme="light"] .file-explorer .text-white\/70,
+[data-theme="light"] .file-explorer .text-white\/80,
+[data-theme="light"] .file-explorer .text-white\/50,
+[data-theme="light"] .file-explorer .text-white {
+  color: #475569 !important; /* slate-600 */
+}
+
+[data-theme="light"] .file-explorer .hover\:bg-white\/10:hover {
+  background-color: rgba(2,6,23,0.03) !important;
+}
+
+[data-theme="light"] .file-explorer .border-white\/10,
+[data-theme="light"] .file-explorer .border-white\/5,
+[data-theme="light"] .file-explorer .border-white\/15,
+[data-theme="light"] .file-explorer .border-white\/20 {
+  border-color: rgba(15,23,42,0.08) !important;
+}
+
+/* Footer and context menu in light mode */
+[data-theme="light"] .fixed.bg-black\/90 {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(15,23,42,0.08) !important;
+}
+
+[data-theme="light"] .file-explorer .p-1\.5:hover,
+[data-theme="light"] .file-explorer .p-1:hover {
+  background-color: rgba(2,6,23,0.03) !important;
+}
+
+/* Ensure inputs and placeholders are visible */
+[data-theme="light"] .file-explorer input::placeholder {
+  color: #94a3b8 !important; /* slate-400 */
+}
+
+/* Catch-all overrides for common dark utility classes used across the app */
+[data-theme="light"] [class*="text-white"] {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] [class*="bg-black"],
+[data-theme="light"] [class*="bg-gray-900"],
+[data-theme="light"] [class*="bg-white/3"] {
+  background-color: #ffffff !important;
+}
+
+[data-theme="light"] [class*="border-white"] {
+  border-color: rgba(15,23,42,0.10) !important;
+}
+
+[data-theme="light"] [class*="text-cyan"],
+[data-theme="light"] [class*="bg-cyan"] {
+  color: #0f172a !important;
+  background-color: transparent !important;
+}
+
+[data-theme="light"] .shadow-2xl,
+[data-theme="light"] .shadow-lg {
+  box-shadow: 0 1px 6px rgba(2,6,23,0.04) !important;
+}
+
+
+/* Header (TopBar) specific light-mode fixes: ensure container border, bg and outline are visible */
+[data-theme="light"] .sticky.top-0 .mx-3.mt-3.mb-2,
+[data-theme="light"] .sticky.top-0 > div[class*="mx-3"],
+[data-theme="light"] .sticky.top-0 .mx-3 {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: rgba(15,23,42,0.12) !important;
+  box-shadow: 0 1px 0 rgba(15,23,42,0.04) !important;
+}
+
+/* Make header outline/focus more visible */
+[data-theme="light"] .sticky.top-0:focus-within,
+[data-theme="light"] .sticky.top-0 .mx-3:focus-within {
+  outline: 2px solid rgba(59,130,246,0.18) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 4px 12px rgba(2,6,23,0.04) !important;
+}
+
+/* Global light-theme border & focus visibility fixes */
+[data-theme="light"] {
+  --lt-border: rgba(15,23,42,0.12);
+  --lt-border-strong: rgba(15,23,42,0.16);
+  --lt-panel-bg: #ffffff;
+  --lt-muted: #64748b; /* slate-500 */
+}
+
+/* Apply to any element with a Tailwind border utility in the light theme */
+[data-theme="light"] [class*="border"] {
+  border-color: var(--lt-border) !important;
+}
+
+/* Stronger borders for panels, headers, footers */
+[data-theme="light"] .border-r,
+[data-theme="light"] .border-l,
+[data-theme="light"] .border-t,
+[data-theme="light"] .border-b,
+[data-theme="light"] .rounded-2xl,
+[data-theme="light"] .rounded-xl,
+[data-theme="light"] .rounded-lg {
+  border-color: var(--lt-border-strong) !important;
+}
+
+/* Ensure backgrounds for panels are light and text is dark */
+[data-theme="light"] .bg-black\/20,
+[data-theme="light"] .bg-black\/30,
+[data-theme="light"] .bg-black\/40,
+[data-theme="light"] .bg-gray-900\/95,
+[data-theme="light"] .bg-gray-900\/80,
+[data-theme="light"] .bg-gray-900\/60 {
+  background-color: var(--lt-panel-bg) !important;
+  color: #0f172a !important;
+}
+
+/* Make focus states clearly visible in light mode */
+[data-theme="light"] :focus {
+  outline: 2px solid rgba(59,130,246,0.18) !important; /* blue-500-ish */
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px rgba(59,130,246,0.08) !important;
+}
+
+/* Specific: make header, topbar and tab borders visible */
+[data-theme="light"] .sticky.top-0,
+[data-theme="light"] .mx-3,
+[data-theme="light"] .rounded-t-lg,
+[data-theme="light"] .rounded-t-xl {
+  border-color: var(--lt-border-strong) !important;
+}
+
+/* Ensure context menus and popovers have visible borders */
+[data-theme="light"] .fixed.bg-black\/90,
+[data-theme="light"] .fixed.z-50 {
+  background-color: var(--lt-panel-bg) !important;
+  border-color: var(--lt-border-strong) !important;
+}
+
+/* Make small icons and svg strokes darker where needed */
+[data-theme="light"] svg,
+[data-theme="light"] svg * {
+  stroke: currentColor !important;
+  fill: currentColor !important;
+  color: #0f172a !important;
+}
+
+/* Muted text token */
+[data-theme="light"] .text-white\/60,
+[data-theme="light"] .text-white\/50,
+[data-theme="light"] .text-white\/70,
+[data-theme="light"] .text-white\/80 {
+  color: var(--lt-muted) !important;
+}
+
+

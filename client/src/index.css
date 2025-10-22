@@ -28,3 +28,90 @@ button:hover {
 .bg-gradient-to-r {
   background: linear-gradient(to right, #6c5ce7, #8e44ad);
 }
+
+/* CRITICAL: Prevent ALL layout shifts - Universal fix */
+* {
+  scrollbar-gutter: stable;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Prevent horizontal scrolling completely */
+body, html {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* CRITICAL: Force stable scrollbar for all scrollable divs */
+div[class*="overflow-y"], div[class*="overflow-"] {
+  scrollbar-gutter: stable;
+}
+
+/* Custom scrollbar styling */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom scrollbar styling for webkit browsers */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* ULTRA FIX: Ensure flex containers don't shift */
+.flex {
+  min-width: 0;
+}
+
+/* Ensure PanelGroup and panels maintain width */
+[class*="panel"] {
+  scrollbar-gutter: stable;
+}
+
+/* FileExplorer specific fixes */
+.file-explorer {
+  scrollbar-gutter: stable;
+  min-width: 0;
+  width: 100%;
+}
+
+.file-explorer-content {
+  scrollbar-gutter: stable;
+  min-width: 0;
+  width: 100%;
+}
+
