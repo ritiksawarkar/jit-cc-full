@@ -42,25 +42,40 @@ export async function getAISuggestions(prompt) {
   } catch (err) {
     // Normalize axios cancelation / error objects so caller gets a clear Error
     if (err && err.__CANCEL__) {
-      throw { type: 'cancelation', msg: err.message || 'request canceled' };
+      throw { type: "cancelation", msg: err.message || "request canceled" };
     }
     // Re-throw a simple Error where possible
-    const message = err?.response?.data?.error || err.message || JSON.stringify(err);
+    const message =
+      err?.response?.data?.error || err.message || JSON.stringify(err);
     throw new Error(message);
   }
 }
 
 // Explain an error or compile output using the AI endpoint. The server expects
 // { code: prompt } and returns { suggestions: string }.
-export async function explainError({ language, stderr, compile_output, context }) {
+export async function explainError({
+  language,
+  stderr,
+  compile_output,
+  context,
+}) {
   const promptParts = [];
   if (language) promptParts.push(`Language: ${language}`);
   if (stderr) promptParts.push(`Stderr:\n${stderr}`);
   if (compile_output) promptParts.push(`Compile Output:\n${compile_output}`);
   if (context) promptParts.push(`Context:\n${context}`);
   const prompt = promptParts.join("\n\n");
-  const res = await API.post("/api/ai-suggestions", { code: prompt });
-  return res.data;
+  try {
+    const res = await API.post("/api/ai-suggestions", { code: prompt });
+    return res.data;
+  } catch (err) {
+    const message =
+      err?.response?.data?.error ||
+      err?.response?.data?.message ||
+      err?.message ||
+      "Unable to explain the error right now";
+    throw new Error(message);
+  }
 }
 
 export async function loginWithEmail({ email, password }) {
@@ -74,17 +89,19 @@ export async function signupWithEmail({ name, email, password }) {
 }
 
 export async function fetchLeaderboard(limit = 20) {
-  const res = await API.get(`/api/leaderboard?limit=${encodeURIComponent(limit)}`);
+  const res = await API.get(
+    `/api/leaderboard?limit=${encodeURIComponent(limit)}`,
+  );
   return res.data;
 }
 
 export async function getSettings() {
-  const res = await API.get('/api/settings');
+  const res = await API.get("/api/settings");
   return res.data;
 }
 
 export async function setProjectRoot(rootPath) {
-  const res = await API.post('/api/settings/root', { rootPath });
+  const res = await API.post("/api/settings/root", { rootPath });
   return res.data;
 }
 
@@ -135,7 +152,10 @@ export async function renameFile(oldPath, newName) {
     throw new Error("No base64 encoder available");
   };
   const encodedPath = encode(oldPath);
-  const res = await API.put(`/api/files/rename/${encodeURIComponent(encodedPath)}`, { newName });
+  const res = await API.put(
+    `/api/files/rename/${encodeURIComponent(encodedPath)}`,
+    { newName },
+  );
   return res.data;
 }
 
@@ -154,8 +174,20 @@ export async function execCommand({ command, cwd, input, timeoutMs } = {}) {
   return res.data;
 }
 
-export async function resolveDependencies({ language = 'auto', source = '', scanProject = false, dryRun = true, action = 'detect' } = {}) {
-  const res = await API.post('/api/resolve-dependencies', { language, source, scanProject, dryRun, action });
+export async function resolveDependencies({
+  language = "auto",
+  source = "",
+  scanProject = false,
+  dryRun = true,
+  action = "detect",
+} = {}) {
+  const res = await API.post("/api/resolve-dependencies", {
+    language,
+    source,
+    scanProject,
+    dryRun,
+    action,
+  });
   return res.data;
 }
 

@@ -31,7 +31,7 @@ export default function InputPanel() {
             defaultValue={0}
           >
             <option value={0} style={{ color: '#000' }}>Timer</option>
-            {[1,2,3,4,5,6,7,8,9,10,11,12].map((h) => (
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => (
               <option key={h} value={h} style={{ color: '#000' }}>{h}h</option>
             ))}
           </select>
@@ -61,10 +61,13 @@ export default function InputPanel() {
       </div>
       <textarea
         className="flex-1 w-full bg-black/50 backdrop-blur-xl border border-white/10 rounded-2xl p-3 resize-none outline-none focus:ring-2 focus:ring-indigo-500/40 font-mono text-white placeholder-white/50"
-        placeholder="Type input for your program…"
+        placeholder="Type full stdin before Run (example: 5 or multi-line values)…"
         value={stdin}
         onChange={(e) => setStdin(e.target.value)}
       />
+      <div className="mt-2 text-xs text-white/55">
+        Input is non-interactive: enter all values here first, then click Run.
+      </div>
     </div>
   );
 }
