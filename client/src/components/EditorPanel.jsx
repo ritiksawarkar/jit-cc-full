@@ -111,71 +111,128 @@ export default function EditorPanel() {
   }, []);
 
   useEffect(() => {
-    // Open WebSocket connection once
-    try {
-      const url = (import.meta.env.PROD ? (import.meta.env.VITE_API_URL || 'http://127.0.0.1:9009') : 'http://127.0.0.1:9009')
-        .replace(/^http/, 'ws') + '/ws';
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
+    let disposed = false;
+    let reconnectTimer = null;
+    let activeWs = null;
 
-      ws.addEventListener('message', (evt) => {
-        try {
-          const msg = JSON.parse(evt.data);
-          if (msg.type === 'edit') {
-            const { filePath, content, clientId, timestamp } = msg;
-            // ignore our own edits
-            if (clientId === CLIENT_ID) return;
-            // apply if active tab matches
-            const state = useCompilerStore.getState();
-            const activeTab = state.tabs.find(t => t.id === state.activeTabId);
-            const activePath = activeTab?.path || activeTab?.name;
-            if (!activePath) return;
-            if (activePath === filePath) {
-              // apply only if newer
-              if ((timestamp || 0) > (lastAppliedRemote.current.timestamp || 0)) {
-                // update store/monaco
-                try {
-                  if (state.updateTabContent) state.updateTabContent(state.activeTabId, String(content || ""));
-                  if (state.setSource) state.setSource(String(content || ""));
-                  lastAppliedRemote.current = { filePath, timestamp };
-                } catch (e) { console.error('Failed to apply remote edit', e); }
+    const handleMessage = (evt) => {
+      try {
+        const msg = JSON.parse(evt.data);
+        if (msg.type === 'edit') {
+          const { filePath, content, clientId, timestamp } = msg;
+          // ignore our own edits
+          if (clientId === CLIENT_ID) return;
+          // apply if active tab matches
+          const state = useCompilerStore.getState();
+          const activeTab = state.tabs.find(t => t.id === state.activeTabId);
+          const activePath = activeTab?.path || activeTab?.name;
+          if (!activePath) return;
+          if (activePath === filePath) {
+            // apply only if newer
+            if ((timestamp || 0) > (lastAppliedRemote.current.timestamp || 0)) {
+              try {
+                if (state.updateTabContent) state.updateTabContent(state.activeTabId, String(content || ""));
+                if (state.setSource) state.setSource(String(content || ""));
+                lastAppliedRemote.current = { filePath, timestamp };
+              } catch (e) {
+                console.error('Failed to apply remote edit', e);
               }
             }
           }
-        } catch (e) {}
-      });
-    } catch (e) {
-      console.warn('Collab WS init failed', e);
-    }
+        }
+      } catch (e) {}
+    };
+
+    const buildWsCandidates = () => {
+      if (import.meta.env.PROD) {
+        const base = import.meta.env.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:9009");
+        return [base.replace(/^http/i, "ws") + "/ws"];
+      }
+      const proto = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
+      const host = typeof window !== "undefined" ? window.location.host : "127.0.0.1:5173";
+      const viaProxy = `${proto}://${host}/ws`;
+      const direct = `${proto}://127.0.0.1:9009/ws`;
+      return Array.from(new Set([viaProxy, direct]));
+    };
+
+    const wsCandidates = buildWsCandidates();
+    let candidateIndex = 0;
+
+    const connect = () => {
+      if (disposed || wsCandidates.length === 0) return;
+
+      const url = wsCandidates[candidateIndex] || wsCandidates[0];
+      try {
+        const ws = new WebSocket(url);
+        activeWs = ws;
+        wsRef.current = ws;
+
+        ws.addEventListener('message', handleMessage);
+        ws.addEventListener('open', () => {
+          candidateIndex = 0;
+        });
+        ws.addEventListener('close', () => {
+          if (disposed) return;
+          if (candidateIndex < wsCandidates.length - 1) {
+            candidateIndex += 1;
+          }
+          reconnectTimer = setTimeout(connect, 1200);
+        });
+        ws.addEventListener('error', () => {
+          // Connection fallback/retry is managed by the close handler.
+        });
+      } catch (e) {
+        if (!disposed) {
+          reconnectTimer = setTimeout(connect, 1200);
+        }
+      }
+    };
+
+    connect();
 
     // keep default first tab name in sync with language
     // only when the first tab is not custom named
     try {
       const state = useCompilerStore.getState();
       const currentTabs = state.tabs || [];
-      if (!currentTabs.length) return;
-      const first = currentTabs[0];
-      if (!first.isCustomName && first.name !== fileNaming.name) {
-        // Instead of renaming, create a new tab for the newly selected language
-        const createTab = state.createTab;
-        // If first tab is empty content, replace its name; otherwise create a fresh tab
-        if (!first.content || first.content.trim() === "") {
-          // replace first tab name in state
-          const updateState = useCompilerStore.setState;
-          if (updateState) {
-            updateState((s) => ({
-              tabs: s.tabs.map((t, idx) => (idx === 0 ? { ...t, name: fileNaming.name } : t)),
-            }));
+      if (currentTabs.length) {
+        const first = currentTabs[0];
+        if (!first.isCustomName && first.name !== fileNaming.name) {
+          // Instead of renaming, create a new tab for the newly selected language
+          const createTab = state.createTab;
+          // If first tab is empty content, replace its name; otherwise create a fresh tab
+          if (!first.content || first.content.trim() === "") {
+            // replace first tab name in state
+            const updateState = useCompilerStore.setState;
+            if (updateState) {
+              updateState((s) => ({
+                tabs: s.tabs.map((t, idx) => (idx === 0 ? { ...t, name: fileNaming.name } : t)),
+              }));
+            }
+          } else if (createTab) {
+            // create a new tab prefilled with default name and a language-appropriate snippet
+            const snippet = HELLO_WORLD_SNIPPETS[monacoLang] ?? "";
+            createTab({ name: fileNaming.name, content: snippet, isCustomName: false });
           }
-        } else if (createTab) {
-          // create a new tab prefilled with default name and a language-appropriate snippet
-          const snippet = HELLO_WORLD_SNIPPETS[monacoLang] ?? "";
-          createTab({ name: fileNaming.name, content: snippet, isCustomName: false });
         }
       }
     } catch (e) {
       // ignore
     }
+
+    return () => {
+      disposed = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+      try {
+        if (activeWs && activeWs.readyState < WebSocket.CLOSING) {
+          activeWs.close();
+        }
+      } catch (e) {
+        // ignore close errors during unmount
+      }
+    };
   }, [fileNaming.name, monacoLang]);
 
   // Subscribe/unsubscribe to WS file channel when active tab changes

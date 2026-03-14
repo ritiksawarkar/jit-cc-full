@@ -11,6 +11,11 @@ export default defineConfig({
         target: "http://127.0.0.1:9009", // force IPv4 to avoid ::1
         changeOrigin: true,
       },
+      "/ws": {
+        target: "ws://127.0.0.1:9009",
+        ws: true,
+        changeOrigin: true,
+      },
     },
   },
 });

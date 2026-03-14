@@ -879,7 +879,7 @@ export default function FileExplorer() {
 
   return (
     <ToastProvider>
-    <div className="h-full flex flex-col bg-gray-900/50 border-r border-white/10 overflow-hidden file-explorer">
+    <div className="relative h-full flex flex-col bg-gray-900/50 border-r border-white/10 overflow-hidden file-explorer">
       {/* Explorer Header */}
       <div className="px-3 py-2 border-b border-white/10">
         <div className="text-xs font-semibold uppercase tracking-widest text-white/70">

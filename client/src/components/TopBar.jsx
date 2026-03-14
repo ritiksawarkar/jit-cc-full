@@ -273,8 +273,8 @@ end.`,
 
   return (
     <div className="sticky top-0 z-10">
-      <div className="mx-3 mt-3 mb-2 bg-black/50 backdrop-blur-xl border border-white/10 rounded-2xl px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="mx-2 md:mx-3 mt-2 md:mt-3 mb-2 bg-black/50 backdrop-blur-xl border border-white/10 rounded-2xl px-3 md:px-4 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -284,17 +284,17 @@ end.`,
             <Code2 className="text-indigo-300" size={24} />
           </motion.div>
           <div>
-            <div className="text-lg font-semibold text-white">
+            <div className="text-base md:text-lg font-semibold text-white truncate">
               Online Code Compiler
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center flex-wrap gap-2 md:gap-3 w-full lg:w-auto justify-start lg:justify-end">
           {/* user area intentionally hidden (no guest message, no name/email/logo) */}
           <div className="hidden sm:block" aria-hidden="true" />
 
-          <div className="relative" ref={searchRef}>
+          <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[14rem] lg:min-w-0" ref={searchRef}>
             <div className="flex items-center gap-2">
               <div className="bg-white/5 text-xs rounded px-2 py-1 text-white/80">
                 <select
@@ -317,7 +317,7 @@ end.`,
                 onKeyDown={handleKeyDown}
                 onFocus={() => setIsOpen(suggestions.length > 0)}
                 placeholder={scope === "files" ? "Search open files..." : "Search code in open files..."}
-                className="hidden sm:block w-64 rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-white outline-none placeholder:text-white/50 focus:border-cyan-400/60"
+                className="w-full sm:w-48 lg:w-64 rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-white outline-none placeholder:text-white/50 focus:border-cyan-400/60"
               />
             </div>
             {isOpen && (
@@ -379,7 +379,7 @@ end.`,
           {/* Timer moved to InputPanel */}
 
           <select
-            className="hidden sm:block bg-black/50 backdrop-blur-xl border border-white/30 rounded-lg px-3 py-2 text-sm text-white hover:bg-white/10 transition-colors relative z-50"
+            className="w-full sm:w-auto bg-black/50 backdrop-blur-xl border border-white/30 rounded-lg px-3 py-2 text-sm text-white hover:bg-white/10 transition-colors relative z-50 max-w-full sm:max-w-[14rem]"
             value={languageId}
             onChange={handleLanguageChange}
           >

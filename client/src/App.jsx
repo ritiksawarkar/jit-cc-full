@@ -7,7 +7,7 @@ import FancyBackground from "./components/FancyBackground";
  */
 export default function App() {
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative h-[100dvh] min-h-[100dvh] overflow-hidden">
       <FancyBackground />
       <Shell />
     </div>

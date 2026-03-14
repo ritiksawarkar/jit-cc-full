@@ -401,7 +401,7 @@ export default function RunButtons() {
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center justify-start lg:justify-end gap-2 flex-wrap w-full md:w-auto">
       <motion.button
         whileHover={{
           scale: 1.03,
@@ -411,20 +411,20 @@ export default function RunButtons() {
         whileTap={{ scale: 0.98 }}
         disabled={isRunning}
         onClick={onRun}
-        className={`px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition flex items-center gap-2 text-white ${
+        className={`px-3 md:px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition flex items-center gap-2 text-white text-sm ${
           isRunning ? "opacity-70 cursor-not-allowed" : ""
         }`}
       >
-        <Play size={18} /> {isRunning ? "Running…" : "Run Code"}
+        <Play size={18} /> {isRunning ? "Running…" : "Run"}
       </motion.button>
 
       <motion.button
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.98 }}
         onClick={clearIO}
-        className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition flex items-center gap-2 text-white"
+        className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition flex items-center gap-2 text-white text-sm"
       >
-        <RotateCcw size={18} /> Clear IO
+        <RotateCcw size={18} /> Clear
       </motion.button>
 
       <motion.button
@@ -442,7 +442,7 @@ export default function RunButtons() {
             setDepsDetected({ error: (err?.response?.data?.error || err?.message || String(err)) });
           }
         }}
-        className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition flex items-center gap-2 text-white"
+        className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition flex items-center gap-2 text-white text-sm"
       >
         Deps
       </motion.button>

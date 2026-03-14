@@ -1,11 +1,16 @@
 import axios from "axios";
 
-// Explicitly point to backend during dev
+// In dev, use same-origin so Vite proxy can forward /api for desktop/mobile/tablet.
 const base = import.meta.env.PROD
   ? import.meta.env.VITE_API_URL || "http://127.0.0.1:9009"
-  : "http://127.0.0.1:9009"; // <-- backend Express server
+  : "";
 
 export const API = axios.create({ baseURL: base });
+
+// Direct backend fallback for dev-time proxy failures.
+const DEV_DIRECT_API = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:9009",
+});
 
 API.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
@@ -94,8 +99,17 @@ export async function submitScore(score) {
 }
 
 export async function getProjectStructure() {
-  const res = await API.get("/api/project-structure");
-  return res.data;
+  try {
+    const res = await API.get("/api/project-structure");
+    return res.data;
+  } catch (err) {
+    // In dev, Vite proxy can intermittently return 500 while backend is healthy.
+    if (!import.meta.env.PROD) {
+      const fallback = await DEV_DIRECT_API.get("/api/project-structure");
+      return fallback.data;
+    }
+    throw err;
+  }
 }
 
 export async function readFile(filePath) {
