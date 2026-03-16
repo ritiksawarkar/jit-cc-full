@@ -2,8 +2,9 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import connectDB from "./config/db.js";
+import authRoutes from "./routes/authRoutes.js";
 import fs, { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,17 +66,7 @@ try {
   // ignore and use repo root
 }
 let SERVER_PROJECT_ROOT = defaultRoot;
-const usersPath = path.join(__dirname, "data", "users.json");
 const leaderboardPath = path.join(__dirname, "data", "leaderboard.json");
-
-let USERS = [];
-try {
-  const rawUsers = readFileSync(usersPath, "utf-8");
-  USERS = JSON.parse(rawUsers);
-} catch (err) {
-  console.error("❌ Failed to load users.json", err);
-  process.exit(1);
-}
 
 // Load leaderboard (optional file)
 let LEADERBOARD = [];
@@ -297,121 +288,9 @@ app.post("/api/ai-suggestions", async (req, res) => {
 });
 
 // --------------------
-// Authentication Endpoint
+// Authentication Routes (MongoDB-backed)
 // --------------------
-app.post("/api/auth/login", async (req, res) => {
-  try {
-    const { email, password } = req.body || {};
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
-    }
-
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const user = USERS.find(
-      (entry) => entry.email.toLowerCase() === normalizedEmail,
-    );
-
-    if (!user) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-    if (!isValidPassword) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    const token = jwt.sign(
-      {
-        sub: user.id,
-        email: user.email,
-        name: user.name,
-      },
-      AUTH_JWT_SECRET,
-      { expiresIn: "7d" },
-    );
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-      },
-    });
-  } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ error: "Unable to sign in right now" });
-  }
-});
-
-// --------------------
-// Signup Endpoint
-// --------------------
-app.post("/api/auth/signup", async (req, res) => {
-  try {
-    const { name, email, password } = req.body || {};
-    if (!name || !email || !password) {
-      return res
-        .status(400)
-        .json({ error: "Name, email and password are required" });
-    }
-
-    const normalizedEmail = String(email).trim().toLowerCase();
-    if (USERS.find((u) => u.email.toLowerCase() === normalizedEmail)) {
-      return res.status(409).json({ error: "Email already in use" });
-    }
-
-    // Basic password policy: >= 6 characters
-    if (String(password).length < 6) {
-      return res
-        .status(400)
-        .json({ error: "Password must be at least 6 characters" });
-    }
-
-    const id = `u-${Date.now()}`;
-    const passwordHash = await bcrypt.hash(password, 10);
-    const newUser = {
-      id,
-      name: String(name).trim(),
-      email: normalizedEmail,
-      passwordHash,
-    };
-
-    // Persist to users.json (append in-memory and write file)
-    USERS.push(newUser);
-    try {
-      await fs.promises.mkdir(path.join(__dirname, "data"), {
-        recursive: true,
-      });
-    } catch (e) {
-      // ignore
-    }
-    try {
-      await fs.promises.writeFile(
-        usersPath,
-        JSON.stringify(USERS, null, 2),
-        "utf-8",
-      );
-    } catch (err) {
-      console.error("Failed to persist new user:", err);
-      return res.status(500).json({ error: "Unable to create account" });
-    }
-
-    const token = jwt.sign(
-      { sub: newUser.id, email: newUser.email, name: newUser.name },
-      AUTH_JWT_SECRET,
-      { expiresIn: "7d" },
-    );
-
-    res.status(201).json({
-      token,
-      user: { id: newUser.id, name: newUser.name, email: newUser.email },
-    });
-  } catch (err) {
-    console.error("Signup error:", err);
-    res.status(500).json({ error: "Unable to sign up right now" });
-  }
-});
+app.use("/api/auth", authRoutes);
 
 // --------------------
 // Leaderboard endpoints
@@ -456,7 +335,7 @@ app.post("/api/leaderboard", async (req, res) => {
     }
 
     const userId = payload.sub;
-    const user = USERS.find((u) => u.id === userId) || {
+    const user = {
       id: userId,
       name: payload.name || "Unknown",
     };
@@ -1430,6 +1309,7 @@ app.post("/api/settings/root", (req, res) => {
 // --------------------
 // Start server
 // --------------------
+await connectDB();
 const server = app.listen(PORT, "0.0.0.0", () =>
   console.log(`🚀 Server listening on http://127.0.0.1:${PORT}`),
 );
