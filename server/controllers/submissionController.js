@@ -28,7 +28,9 @@ const LANGUAGE_NAME_TO_ID = {
 };
 
 function normalizeOutput(value) {
-  return String(value ?? "").replace(/\r\n/g, "\n").trimEnd();
+  return String(value ?? "")
+    .replace(/\r\n/g, "\n")
+    .trimEnd();
 }
 
 function resolveLanguageId(languageId, language) {
@@ -53,7 +55,10 @@ function resolveLanguageId(languageId, language) {
 function classifySubmissionStatus(executionResult, output, expectedOutput) {
   const statusId = Number(executionResult?.status?.id || 0);
 
-  if (COMPILATION_ERROR_STATUS_IDS.has(statusId) || executionResult?.compile_output) {
+  if (
+    COMPILATION_ERROR_STATUS_IDS.has(statusId) ||
+    executionResult?.compile_output
+  ) {
     return "Compilation Error";
   }
 
@@ -81,7 +86,9 @@ async function resolveProblem(problemId) {
   }
 
   // Fallback problem avoids blocking submission when user has no configured problem ID.
-  let fallback = await Problem.findOne({ title: "Default Submission Problem" }).lean();
+  let fallback = await Problem.findOne({
+    title: "Default Submission Problem",
+  }).lean();
   if (fallback) {
     return fallback;
   }
@@ -97,22 +104,37 @@ async function resolveProblem(problemId) {
 
 export async function submitCode(req, res) {
   try {
-    const { userId, problemId, language, language_id, sourceCode, input = "" } = req.body || {};
+    const {
+      userId,
+      problemId,
+      language,
+      language_id,
+      sourceCode,
+      input = "",
+    } = req.body || {};
     const authenticatedUserId = req.user?.sub;
     const authenticatedRole = req.user?.role;
 
     const targetUserId =
-      authenticatedRole === "admin" && userId ? String(userId) : String(authenticatedUserId || "");
+      authenticatedRole === "admin" && userId
+        ? String(userId)
+        : String(authenticatedUserId || "");
 
-    if (!targetUserId || sourceCode === undefined || sourceCode === null || (!language && !language_id)) {
+    if (
+      !targetUserId ||
+      sourceCode === undefined ||
+      sourceCode === null ||
+      (!language && !language_id)
+    ) {
       return res.status(400).json({
-        error:
-          "sourceCode and either language or language_id are required",
+        error: "sourceCode and either language or language_id are required",
       });
     }
 
     if (typeof sourceCode !== "string" || !sourceCode.trim()) {
-      return res.status(400).json({ error: "sourceCode must be a non-empty string" });
+      return res
+        .status(400)
+        .json({ error: "sourceCode must be a non-empty string" });
     }
 
     if (input !== undefined && input !== null && typeof input !== "string") {
@@ -121,7 +143,9 @@ export async function submitCode(req, res) {
 
     const languageId = resolveLanguageId(language_id, language);
     if (!languageId) {
-      return res.status(400).json({ error: "Unsupported language or missing language_id" });
+      return res
+        .status(400)
+        .json({ error: "Unsupported language or missing language_id" });
     }
 
     const problem = await resolveProblem(problemId);
@@ -132,10 +156,16 @@ export async function submitCode(req, res) {
       stdin: String(input ?? ""),
     });
 
-    const output = normalizeOutput(executionResult?.stdout || executionResult?.stderr || "");
+    const output = normalizeOutput(
+      executionResult?.stdout || executionResult?.stderr || "",
+    );
     const expectedOutput = normalizeOutput(problem.expectedOutput || "");
 
-    const status = classifySubmissionStatus(executionResult, output, expectedOutput);
+    const status = classifySubmissionStatus(
+      executionResult,
+      output,
+      expectedOutput,
+    );
 
     const executionTimeSeconds = Number(executionResult?.time || 0);
     const executionTime = Number.isFinite(executionTimeSeconds)
@@ -153,7 +183,8 @@ export async function submitCode(req, res) {
       status,
       executionTime,
       memory:
-        executionResult?.memory !== undefined && executionResult?.memory !== null
+        executionResult?.memory !== undefined &&
+        executionResult?.memory !== null
           ? Number(executionResult.memory)
           : undefined,
     });
@@ -181,7 +212,8 @@ export async function submitCode(req, res) {
       }
       return res.status(upstreamStatus).json({
         error: "Invalid submission request",
-        message: err?.response?.data?.error || err?.message || "Request rejected",
+        message:
+          err?.response?.data?.error || err?.message || "Request rejected",
       });
     }
 
@@ -232,12 +264,16 @@ export async function getSubmissionByProblem(req, res) {
 
     const submissions = await Submission.find(query)
       .sort({ createdAt: -1 })
-      .select("userId problemId language status executionTime memory createdAt output expectedOutput")
+      .select(
+        "userId problemId language status executionTime memory createdAt output expectedOutput",
+      )
       .lean();
 
     return res.json({ count: submissions.length, submissions });
   } catch (err) {
     console.error("getSubmissionByProblem error:", err);
-    return res.status(500).json({ error: "Unable to fetch problem submissions" });
+    return res
+      .status(500)
+      .json({ error: "Unable to fetch problem submissions" });
   }
 }

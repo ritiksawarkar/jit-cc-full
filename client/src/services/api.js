@@ -54,7 +54,9 @@ export async function submitCode({
 }
 
 export async function fetchUserSubmissions(userId) {
-  const res = await API.get(`/api/submissions/user/${encodeURIComponent(userId)}`);
+  const res = await API.get(
+    `/api/submissions/user/${encodeURIComponent(userId)}`,
+  );
   return res.data;
 }
 

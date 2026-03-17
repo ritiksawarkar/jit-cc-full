@@ -151,7 +151,7 @@ export default function FileExplorer() {
   try {
     toast = useToast();
   } catch (e) {
-    toast = { push: (msg, opts) => { try { alert(msg); } catch {} } };
+    toast = { push: (msg, opts) => { try { alert(msg); } catch { } } };
   }
 
   // Load project structure
@@ -179,7 +179,7 @@ export default function FileExplorer() {
     if (stored) {
       try {
         setExpandedFolders(JSON.parse(stored));
-      } catch {}
+      } catch { }
     }
 
     // Listen for external changes to project structure (rename/delete/create from editor)
@@ -196,7 +196,7 @@ export default function FileExplorer() {
       try {
         renameInputRef.current.focus();
         renameInputRef.current.select();
-      } catch (e) {}
+      } catch (e) { }
     }
   }, [selectedForRename]);
 
@@ -244,23 +244,23 @@ export default function FileExplorer() {
     // Update the global store with the current query so TopBar / other components stay in sync
     try {
       setStoreSearchQuery(query);
-    } catch {}
+    } catch { }
     if (query.trim().length < 2) {
       setLocalSearchResults([]);
       // clear results in the global store as well
       try {
         setSearchResults([]);
-      } catch {}
+      } catch { }
       return;
     }
-    
+
     setLocalIsSearching(true);
     try {
       const results = await searchFiles(query, 30);
       setLocalSearchResults(results.results || []);
       try {
         setSearchResults(results.results || []);
-      } catch {}
+      } catch { }
     } catch (err) {
       console.error("Search failed:", err);
       setLocalSearchResults([]);
@@ -283,7 +283,7 @@ export default function FileExplorer() {
         : [...prev, folderPath];
       try {
         localStorage.setItem("esm-file-explorer-expanded", JSON.stringify(next));
-      } catch {}
+      } catch { }
       return next;
     });
   };
@@ -333,11 +333,11 @@ export default function FileExplorer() {
   const handleFilePreview = async (filePath, fileName) => {
     try {
       const data = await readFile(filePath);
-      
+
       // Determine language ID based on file extension
       const ext = fileName.split(".").pop().toLowerCase();
       let langId = 63; // Default to JavaScript
-      
+
       const extToLangMap = {
         js: 63,
         jsx: 63,
@@ -351,11 +351,11 @@ export default function FileExplorer() {
         go: 60,
         clj: 86,
       };
-      
+
       if (ext in extToLangMap) {
         langId = extToLangMap[ext];
       }
-      
+
       // If the file is already open in a tab, select that tab and update its content.
       const state = useCompilerStore.getState();
       // Prefer matching by full path if tabs have a path, otherwise fall back to name
@@ -373,7 +373,7 @@ export default function FileExplorer() {
           isCustomName: true,
         });
       }
-      
+
       // Track in recently opened
       addRecentlyOpened(filePath, fileName);
     } catch (err) {
@@ -407,7 +407,7 @@ export default function FileExplorer() {
       await loadStructure();
       // if created in root, ensure root expanded
       setExpandedFolders((prev) => prev);
-      try { addRecentlyOpened(path, path.split('/').pop()); } catch {}
+      try { addRecentlyOpened(path, path.split('/').pop()); } catch { }
       return true;
     } catch (err) {
       console.error('Create failed:', err);
@@ -426,9 +426,9 @@ export default function FileExplorer() {
         const data = await getProjectStructure();
         setProjectStructure(data.structure || []);
       } catch (err) {
-          console.error("Rename failed:", err);
-          toast.push(`Failed to rename: ${err.message}`, { type: 'error' });
-        }
+        console.error("Rename failed:", err);
+        toast.push(`Failed to rename: ${err.message}`, { type: 'error' });
+      }
     }
     setSelectedForRename(null);
     setRenameValue("");
@@ -465,34 +465,34 @@ export default function FileExplorer() {
       return;
     }
     const ext = extMatch[1].toLowerCase();
-    const allowed = new Set(["js","jsx","ts","tsx","py","java","c","cpp","rs","go","html","css","json","md","txt","sh","bash","yml","yaml"]);
+    const allowed = new Set(["js", "jsx", "ts", "tsx", "py", "java", "c", "cpp", "rs", "go", "html", "css", "json", "md", "txt", "sh", "bash", "yml", "yaml"]);
     if (!allowed.has(ext)) {
       toast.push(`Invalid or unsupported extension '.${ext}'. Allowed: ${Array.from(allowed).join(', ')}`, { type: 'error' });
       return;
     }
-    
+
     try {
       // If no folder selected, create in root, otherwise in selected folder
       const basePath = currentPath.length > 0 ? currentPath.join("/") : "";
       let newPath = basePath ? `${basePath}/${newFileName}` : newFileName;
-      
+
       // Ensure path doesn't start with /
       if (newPath.startsWith("/")) {
         newPath = newPath.substring(1);
       }
-      
-  await createFile(newPath, "// New file\n");
-      
+
+      await createFile(newPath, "// New file\n");
+
       // Reload structure
       const data = await getProjectStructure();
       setProjectStructure(data.structure || []);
-      
+
       // Auto-navigate to the file's directory if in root
       if (currentPath.length === 0 && basePath === "") {
         // File created in root - navigate to root to show it
         setCurrentPath([]);
       }
-      
+
       // Auto-expand the folder containing the new file
       if (basePath) {
         setExpandedFolders((prev) => {
@@ -501,16 +501,16 @@ export default function FileExplorer() {
           return Array.from(expanded);
         });
       }
-      
+
       setNewFileName("");
       setShowCreateFile(false);
-      
+
       // Open new file in preview
       addRecentlyOpened(newPath, newFileName);
     } catch (err) {
       console.error("Create failed:", err);
       const errorMsg = err.response?.data?.error || err.message;
-      
+
       if (err.response?.status === 409) {
         toast.push(`⚠️ File already exists: ${newFileName}`, { type: 'error' });
       } else {
@@ -566,9 +566,9 @@ export default function FileExplorer() {
         setShowCreateFileHeader(true);
         // focus the header file input if available
         setTimeout(() => {
-          try { fileInputRef.current?.focus?.(); } catch (e) {}
+          try { fileInputRef.current?.focus?.(); } catch (e) { }
         }, 60);
-      } catch (e) {}
+      } catch (e) { }
     } catch (err) {
       console.error('Create folder failed:', err);
       const msg = err.response?.data?.error || err.message;
@@ -754,7 +754,7 @@ export default function FileExplorer() {
       return;
     }
     const ext = extMatch[1].toLowerCase();
-    const allowed = new Set(["js","jsx","ts","tsx","py","java","c","cpp","rs","go","html","css","json","md","txt","sh","bash","yml","yaml"]);
+    const allowed = new Set(["js", "jsx", "ts", "tsx", "py", "java", "c", "cpp", "rs", "go", "html", "css", "json", "md", "txt", "sh", "bash", "yml", "yaml"]);
     if (!allowed.has(ext)) {
       toast.push(`Invalid extension '.${ext}'`, { type: 'error' });
       return;
@@ -776,7 +776,7 @@ export default function FileExplorer() {
       const ok = await createFileAndRefresh(rel, '// New file\n');
       if (ok) {
         // expand the folder
-        if (base) setExpandedFolders((prev) => Array.from(new Set([...(prev||[]), base])));
+        if (base) setExpandedFolders((prev) => Array.from(new Set([...(prev || []), base])));
         // open file in editor
         try { await handleFilePreview(rel, name); } catch (e) { console.error('open after create failed', e); }
         setCreatingFileAt(null);
@@ -812,7 +812,7 @@ export default function FileExplorer() {
     try {
       await createFileAndRefresh(rel, '// New file\n');
       // expand folder if needed
-      if (folderPath) setExpandedFolders((prev) => Array.from(new Set([...(prev||[]), folderPath])));
+      if (folderPath) setExpandedFolders((prev) => Array.from(new Set([...(prev || []), folderPath])));
       // don't auto-open the file; instead enter rename mode so the user can edit the name
       try {
         setSelectedForRename({ path: rel, item: { name, type: 'file' } });
@@ -820,7 +820,7 @@ export default function FileExplorer() {
         // ensure the tree reflects the new item and give a tick for autofocus
         setTimeout(() => {
           // the input in FileItem has autoFocus; no explicit focus needed, but keep for safety
-          try { document.querySelector(`input[value=\"${name}\"]`)?.focus?.(); } catch (e) {}
+          try { document.querySelector(`input[value=\"${name}\"]`)?.focus?.(); } catch (e) { }
         }, 40);
       } catch (e) {
         console.error('enter rename mode failed', e);
@@ -848,7 +848,7 @@ export default function FileExplorer() {
     try {
       await createFolder(relFolder);
       await loadStructure();
-      setExpandedFolders((prev) => Array.from(new Set([...(prev||[]), parentPath, relFolder].filter(Boolean))));
+      setExpandedFolders((prev) => Array.from(new Set([...(prev || []), parentPath, relFolder].filter(Boolean))));
       // enter rename mode for the new folder so the user can change its name immediately
       setSelectedForRename({ path: relFolder, item: { name: candidate, type: 'folder' } });
       setRenameValue(candidate);
@@ -875,313 +875,313 @@ export default function FileExplorer() {
 
   return (
     <ToastProvider>
-    <div className="h-full flex flex-col bg-gray-900/50 border-r border-white/10 overflow-hidden file-explorer">
-      {/* Explorer Header */}
-      <div className="ui-header">
-        <div className="text-xs font-semibold uppercase tracking-wide text-white/70">
-          Explorer
+      <div className="h-full flex flex-col bg-gray-900/50 border-r border-white/10 overflow-hidden file-explorer">
+        {/* Explorer Header */}
+        <div className="ui-header">
+          <div className="text-xs font-semibold uppercase tracking-wide text-white/70">
+            Explorer
+          </div>
         </div>
-      </div>
 
-      {/* Breadcrumb Navigation */}
-      {currentPath.length > 0 && (
-        <div className="px-3 py-1 border-b border-white/10 flex items-center gap-1 text-xs text-white/60 overflow-x-auto scrollbar-hide">
-          <button
-            onClick={() => setCurrentPath([])}
-            className="hover:text-white/80 transition"
-          >
-            /
-          </button>
-          {currentPath.map((segment, idx) => (
-            <React.Fragment key={idx}>
-              <span className="text-white/40">/</span>
-              <button
-                onClick={() => setCurrentPath(currentPath.slice(0, idx + 1))}
-                className="hover:text-white/80 transition truncate"
-              >
-                {segment}
-              </button>
-            </React.Fragment>
-          ))}
-        </div>
-      )}
-
-      {/* Scrollable Content - Force scrollbar width to prevent layout shift */}
-      <div className="flex-1 overflow-y-scroll text-sm text-white file-explorer-content">
-        {/* Search Results Section */}
-        {searchQuery.length >= 2 && searchResults.length > 0 && (
-          <div className="border-b border-white/10">
-            <div className="px-4 py-2 text-xs font-semibold uppercase text-white/60 tracking-widest bg-black/20 flex items-center justify-between">
-              <span>Search Results ({searchResults.length})</span>
-              {isSearching && <span className="text-xs animate-spin">⏳</span>}
-            </div>
-            <div className="space-y-1 px-2 py-1">
-              {searchResults.map((result, idx) => (
-                <div key={idx} className="flex flex-col gap-0.5 text-xs text-white/70 hover:text-white/90 p-1.5 rounded hover:bg-white/10 cursor-pointer transition">
-                  <div className="flex items-center gap-1">
-                    <span>{getFileTypeIcon(result.file)}</span>
-                    <span className="truncate font-mono text-xs text-cyan-400">{result.file}</span>
-                  </div>
-                  <div className="text-white/50 text-xs ml-4">
-                    Line {result.lineNum}: {result.line}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Project Files Section - Show when folder is selected OR when files exist in root */}
-        {(currentPath.length > 0 || projectStructure.length > 0) && (
-          <div>
-            <div className="px-4 py-2 text-xs font-semibold uppercase text-white/60 tracking-widest bg-black/20 flex items-center justify-between">
-              <div>{currentPath.length > 0 ? "Project Files" : "Root Files"}</div>
-              {currentPath.length === 0 && (
-                <div className="flex items-center gap-2">
-                  {/* Inline header create controls (no browser prompts) */}
-                  {showCreateFileHeader ? (
-                    <div className="flex items-center gap-1">
-                      <input
-                        ref={fileInputRef}
-                        type="text"
-                        placeholder="filename.ext or folder/name.ext"
-                        value={newFileNameHeader}
-                        onChange={(e) => setNewFileNameHeader(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleHeaderCreateFile();
-                          if (e.key === 'Escape') { setShowCreateFileHeader(false); setNewFileNameHeader(''); }
-                        }}
-                        className="text-xs bg-black/20 border border-cyan-400 px-1 rounded text-white w-40"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleHeaderCreateFile}
-                        title="Create file"
-                        className="p-1 rounded hover:bg-white/10 text-white/70"
-                      >
-                        <Plus size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setShowCreateFileHeader(false); setNewFileNameHeader(''); }}
-                        title="Cancel"
-                        className="p-1 rounded hover:bg-white/10 text-white/70"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      title="Quick create untitled file in root"
-                      onClick={() => {
-                        handleQuickCreateUntitledFile("").catch((err) => console.error(err));
-                      }}
-                      className="p-1 rounded hover:bg-white/10 text-white/70"
-                    >
-                      <FilePlus size={14} />
-                    </button>
-                  )}
-
-                  {showCreateFolderHeader ? (
-                    <div className="flex items-center gap-1">
-                        <Folder size={14} className="text-yellow-300" />
-                      <input
-                        type="text"
-                        placeholder="folder name"
-                        value={newFolderNameHeader}
-                        onChange={(e) => setNewFolderNameHeader(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleHeaderCreateFolder();
-                          if (e.key === 'Escape') { setShowCreateFolderHeader(false); setNewFolderNameHeader(''); }
-                        }}
-                        className="text-xs bg-black/20 border border-cyan-400 px-1 rounded text-white w-28"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleHeaderCreateFolder}
-                        title="Create folder"
-                        className="p-1 rounded hover:bg-white/10 text-white/70"
-                      >
-                        <Plus size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setShowCreateFolderHeader(false); setNewFolderNameHeader(''); }}
-                        title="Cancel"
-                        className="p-1 rounded hover:bg-white/10 text-white/70"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      title="Quick create untitled folder"
-                      onClick={() => {
-                        handleQuickCreateUntitledFolder(currentPath.join('/')).catch((err) => console.error(err));
-                      }}
-                      className="p-1 rounded hover:bg-white/10 text-white/70"
-                    >
-                      <FolderPlus size={14} />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="px-2 py-1 space-y-0.5">
-              {/* Inline root create input when creatingFileAt === '' */}
-              {creatingFileAt === "" && (
-                <div className="flex items-center gap-1 px-2 py-0.5 rounded">
-                  <File size={12} className="text-white/40" />
-                  <input
-                    ref={creatingInputRef}
-                    type="text"
-                    placeholder=""
-                    value={creatingFileDraft}
-                    onChange={(e) => setCreatingFileDraft(e.target.value)}
-                    onKeyDown={async (e) => {
-                      if (e.key === 'Enter') { e.stopPropagation(); await handleCreateFileInline(''); }
-                      if (e.key === 'Escape') { setCreatingFileAt(null); setCreatingFileDraft(''); }
-                    }}
-                    className="text-xs bg-black/20 border border-cyan-400 px-1 rounded text-white w-48"
-                  />
-                  <button
-                    onClick={async (ev) => { ev.stopPropagation(); await handleCreateFileInline(''); }}
-                    className="p-1 rounded hover:bg-white/10 text-white/60"
-                    title="Create file"
-                  >
-                    <CheckCircle size={14} />
-                  </button>
-                  <button
-                    onClick={(ev) => { ev.stopPropagation(); setCreatingFileAt(null); setCreatingFileDraft(''); }}
-                    className="p-1 rounded hover:bg-white/10 text-white/40"
-                    title="Cancel"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-              {loading ? (
-                <div className="px-2 py-2 text-xs text-white/50">Loading...</div>
-              ) : projectStructure.length > 0 ? (
-                renderTree(projectStructure)
-              ) : (
-                <div className="px-2 py-2 text-xs text-white/50">
-                  No files found
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-        
-        {/* Empty State - When no files exist anywhere */}
-        {currentPath.length === 0 && projectStructure.length === 0 && (
-          <div className="px-4 py-8 text-center">
-            <div className="text-xs text-white/40">
-              select and create a folder and file
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Footer Actions */}
-      <div className="border-t border-white/10 bg-black/20 px-2.5 py-2 space-y-1.5">
-        {showCreateFile && (
-          <div className="flex gap-1">
-            <input
-              type="text"
-              placeholder="File name..."
-              value={newFileName}
-              onChange={(e) => setNewFileName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreateFileAPI();
-                if (e.key === "Escape") setShowCreateFile(false);
-              }}
-              autoFocus
-              style={{ caretColor: '#ffffff' }}
-              className="flex-1 px-2 py-1 text-xs rounded bg-black/20 border border-cyan-400 text-white placeholder:text-white/50 outline-none"
-            />
+        {/* Breadcrumb Navigation */}
+        {currentPath.length > 0 && (
+          <div className="px-3 py-1 border-b border-white/10 flex items-center gap-1 text-xs text-white/60 overflow-x-auto scrollbar-hide">
             <button
-              onClick={handleCreateFileAPI}
-              className="p-1 rounded hover:bg-green-500/30 transition"
+              onClick={() => setCurrentPath([])}
+              className="hover:text-white/80 transition"
             >
-              <Plus size={12} className="text-green-400" />
+              /
+            </button>
+            {currentPath.map((segment, idx) => (
+              <React.Fragment key={idx}>
+                <span className="text-white/40">/</span>
+                <button
+                  onClick={() => setCurrentPath(currentPath.slice(0, idx + 1))}
+                  className="hover:text-white/80 transition truncate"
+                >
+                  {segment}
+                </button>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+
+        {/* Scrollable Content - Force scrollbar width to prevent layout shift */}
+        <div className="flex-1 overflow-y-scroll text-sm text-white file-explorer-content">
+          {/* Search Results Section */}
+          {searchQuery.length >= 2 && searchResults.length > 0 && (
+            <div className="border-b border-white/10">
+              <div className="px-4 py-2 text-xs font-semibold uppercase text-white/60 tracking-widest bg-black/20 flex items-center justify-between">
+                <span>Search Results ({searchResults.length})</span>
+                {isSearching && <span className="text-xs animate-spin">⏳</span>}
+              </div>
+              <div className="space-y-1 px-2 py-1">
+                {searchResults.map((result, idx) => (
+                  <div key={idx} className="flex flex-col gap-0.5 text-xs text-white/70 hover:text-white/90 p-1.5 rounded hover:bg-white/10 cursor-pointer transition">
+                    <div className="flex items-center gap-1">
+                      <span>{getFileTypeIcon(result.file)}</span>
+                      <span className="truncate font-mono text-xs text-cyan-400">{result.file}</span>
+                    </div>
+                    <div className="text-white/50 text-xs ml-4">
+                      Line {result.lineNum}: {result.line}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Project Files Section - Show when folder is selected OR when files exist in root */}
+          {(currentPath.length > 0 || projectStructure.length > 0) && (
+            <div>
+              <div className="px-4 py-2 text-xs font-semibold uppercase text-white/60 tracking-widest bg-black/20 flex items-center justify-between">
+                <div>{currentPath.length > 0 ? "Project Files" : "Root Files"}</div>
+                {currentPath.length === 0 && (
+                  <div className="flex items-center gap-2">
+                    {/* Inline header create controls (no browser prompts) */}
+                    {showCreateFileHeader ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          ref={fileInputRef}
+                          type="text"
+                          placeholder="filename.ext or folder/name.ext"
+                          value={newFileNameHeader}
+                          onChange={(e) => setNewFileNameHeader(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleHeaderCreateFile();
+                            if (e.key === 'Escape') { setShowCreateFileHeader(false); setNewFileNameHeader(''); }
+                          }}
+                          className="text-xs bg-black/20 border border-cyan-400 px-1 rounded text-white w-40"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleHeaderCreateFile}
+                          title="Create file"
+                          className="p-1 rounded hover:bg-white/10 text-white/70"
+                        >
+                          <Plus size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowCreateFileHeader(false); setNewFileNameHeader(''); }}
+                          title="Cancel"
+                          className="p-1 rounded hover:bg-white/10 text-white/70"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        title="Quick create untitled file in root"
+                        onClick={() => {
+                          handleQuickCreateUntitledFile("").catch((err) => console.error(err));
+                        }}
+                        className="p-1 rounded hover:bg-white/10 text-white/70"
+                      >
+                        <FilePlus size={14} />
+                      </button>
+                    )}
+
+                    {showCreateFolderHeader ? (
+                      <div className="flex items-center gap-1">
+                        <Folder size={14} className="text-yellow-300" />
+                        <input
+                          type="text"
+                          placeholder="folder name"
+                          value={newFolderNameHeader}
+                          onChange={(e) => setNewFolderNameHeader(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleHeaderCreateFolder();
+                            if (e.key === 'Escape') { setShowCreateFolderHeader(false); setNewFolderNameHeader(''); }
+                          }}
+                          className="text-xs bg-black/20 border border-cyan-400 px-1 rounded text-white w-28"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleHeaderCreateFolder}
+                          title="Create folder"
+                          className="p-1 rounded hover:bg-white/10 text-white/70"
+                        >
+                          <Plus size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowCreateFolderHeader(false); setNewFolderNameHeader(''); }}
+                          title="Cancel"
+                          className="p-1 rounded hover:bg-white/10 text-white/70"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        title="Quick create untitled folder"
+                        onClick={() => {
+                          handleQuickCreateUntitledFolder(currentPath.join('/')).catch((err) => console.error(err));
+                        }}
+                        className="p-1 rounded hover:bg-white/10 text-white/70"
+                      >
+                        <FolderPlus size={14} />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="px-2 py-1 space-y-0.5">
+                {/* Inline root create input when creatingFileAt === '' */}
+                {creatingFileAt === "" && (
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded">
+                    <File size={12} className="text-white/40" />
+                    <input
+                      ref={creatingInputRef}
+                      type="text"
+                      placeholder=""
+                      value={creatingFileDraft}
+                      onChange={(e) => setCreatingFileDraft(e.target.value)}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter') { e.stopPropagation(); await handleCreateFileInline(''); }
+                        if (e.key === 'Escape') { setCreatingFileAt(null); setCreatingFileDraft(''); }
+                      }}
+                      className="text-xs bg-black/20 border border-cyan-400 px-1 rounded text-white w-48"
+                    />
+                    <button
+                      onClick={async (ev) => { ev.stopPropagation(); await handleCreateFileInline(''); }}
+                      className="p-1 rounded hover:bg-white/10 text-white/60"
+                      title="Create file"
+                    >
+                      <CheckCircle size={14} />
+                    </button>
+                    <button
+                      onClick={(ev) => { ev.stopPropagation(); setCreatingFileAt(null); setCreatingFileDraft(''); }}
+                      className="p-1 rounded hover:bg-white/10 text-white/40"
+                      title="Cancel"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+                {loading ? (
+                  <div className="px-2 py-2 text-xs text-white/50">Loading...</div>
+                ) : projectStructure.length > 0 ? (
+                  renderTree(projectStructure)
+                ) : (
+                  <div className="px-2 py-2 text-xs text-white/50">
+                    No files found
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Empty State - When no files exist anywhere */}
+          {currentPath.length === 0 && projectStructure.length === 0 && (
+            <div className="px-4 py-8 text-center">
+              <div className="text-xs text-white/40">
+                select and create a folder and file
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="border-t border-white/10 bg-black/20 px-2.5 py-2 space-y-1.5">
+          {showCreateFile && (
+            <div className="flex gap-1">
+              <input
+                type="text"
+                placeholder="File name..."
+                value={newFileName}
+                onChange={(e) => setNewFileName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreateFileAPI();
+                  if (e.key === "Escape") setShowCreateFile(false);
+                }}
+                autoFocus
+                style={{ caretColor: '#ffffff' }}
+                className="flex-1 px-2 py-1 text-xs rounded bg-black/20 border border-cyan-400 text-white placeholder:text-white/50 outline-none"
+              />
+              <button
+                onClick={handleCreateFileAPI}
+                className="p-1 rounded hover:bg-green-500/30 transition"
+              >
+                <Plus size={12} className="text-green-400" />
+              </button>
+              <button
+                onClick={() => {
+                  setShowCreateFile(false);
+                  setNewFileName("");
+                }}
+                className="p-1 rounded hover:bg-red-500/30 transition"
+              >
+                <X size={12} className="text-red-400" />
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowCreateFile(true)}
+            className="w-full min-h-9 rounded-md px-2 py-1.5 text-xs text-white/65 transition hover:bg-white/10 hover:text-white/85 flex items-center justify-center gap-1"
+            title="Create new file"
+          >
+            <Plus size={12} /> New File
+          </button>
+        </div>
+
+        {/* Context Menu */}
+        {contextMenu && (
+          <motion.div
+            ref={contextMenuRef}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed bg-black/90 border border-white/20 rounded-lg shadow-lg py-1 z-50"
+            style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+          >
+            <button
+              onClick={() => {
+                handleFilePreview(contextMenu.path, contextMenu.item.name);
+                setContextMenu(null);
+              }}
+              className="w-full px-3 py-1 text-left text-xs text-white/70 hover:text-white hover:bg-white/10 transition flex items-center gap-2"
+            >
+              <Eye size={12} /> Preview
             </button>
             <button
               onClick={() => {
-                setShowCreateFile(false);
-                setNewFileName("");
+                // Store both path and item so render logic (selectedForRename.path) works
+                setSelectedForRename({ path: contextMenu.path, ...contextMenu.item });
+                setRenameValue(contextMenu.item.name);
+                setContextMenu(null);
               }}
-              className="p-1 rounded hover:bg-red-500/30 transition"
+              className="w-full px-3 py-1 text-left text-xs text-white/70 hover:text-white hover:bg-white/10 transition flex items-center gap-2"
             >
-              <X size={12} className="text-red-400" />
+              <Edit2 size={12} /> Rename
             </button>
-          </div>
+            <button
+              onClick={() => {
+                if (contextMenu.type === "file") {
+                  addRecentlyOpened(contextMenu.path, contextMenu.item.name);
+                }
+                setContextMenu(null);
+              }}
+              className="w-full px-3 py-1 text-left text-xs text-white/70 hover:text-white hover:bg-white/10 transition flex items-center gap-2"
+            >
+              <Copy size={12} /> Copy Path
+            </button>
+            <button
+              onClick={() => {
+                handleDeleteFile(contextMenu.path);
+                setContextMenu(null);
+              }}
+              className="w-full px-3 py-1 text-left text-xs text-red-300/70 hover:text-red-300 hover:bg-red-500/20 transition flex items-center gap-2"
+            >
+              <Trash2 size={12} /> Delete
+            </button>
+          </motion.div>
         )}
-        <button
-          type="button"
-          onClick={() => setShowCreateFile(true)}
-          className="w-full min-h-9 rounded-md px-2 py-1.5 text-xs text-white/65 transition hover:bg-white/10 hover:text-white/85 flex items-center justify-center gap-1"
-          title="Create new file"
-        >
-          <Plus size={12} /> New File
-        </button>
       </div>
-
-      {/* Context Menu */}
-      {contextMenu && (
-        <motion.div
-          ref={contextMenuRef}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="fixed bg-black/90 border border-white/20 rounded-lg shadow-lg py-1 z-50"
-          style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
-        >
-          <button
-            onClick={() => {
-              handleFilePreview(contextMenu.path, contextMenu.item.name);
-              setContextMenu(null);
-            }}
-            className="w-full px-3 py-1 text-left text-xs text-white/70 hover:text-white hover:bg-white/10 transition flex items-center gap-2"
-          >
-            <Eye size={12} /> Preview
-          </button>
-          <button
-            onClick={() => {
-              // Store both path and item so render logic (selectedForRename.path) works
-              setSelectedForRename({ path: contextMenu.path, ...contextMenu.item });
-              setRenameValue(contextMenu.item.name);
-              setContextMenu(null);
-            }}
-            className="w-full px-3 py-1 text-left text-xs text-white/70 hover:text-white hover:bg-white/10 transition flex items-center gap-2"
-          >
-            <Edit2 size={12} /> Rename
-          </button>
-          <button
-            onClick={() => {
-              if (contextMenu.type === "file") {
-                addRecentlyOpened(contextMenu.path, contextMenu.item.name);
-              }
-              setContextMenu(null);
-            }}
-            className="w-full px-3 py-1 text-left text-xs text-white/70 hover:text-white hover:bg-white/10 transition flex items-center gap-2"
-          >
-            <Copy size={12} /> Copy Path
-          </button>
-          <button
-            onClick={() => {
-              handleDeleteFile(contextMenu.path);
-              setContextMenu(null);
-            }}
-            className="w-full px-3 py-1 text-left text-xs text-red-300/70 hover:text-red-300 hover:bg-red-500/20 transition flex items-center gap-2"
-          >
-            <Trash2 size={12} /> Delete
-          </button>
-        </motion.div>
-      )}
-    </div>
     </ToastProvider>
   );
 }

@@ -20,7 +20,9 @@ export function allowSelfOrAdmin(paramKey = "userId") {
   return (req, res, next) => {
     const authUserId = String(req.user?.sub || "");
     const role = String(req.user?.role || "student");
-    const targetUserId = String(req.params?.[paramKey] || req.query?.[paramKey] || "");
+    const targetUserId = String(
+      req.params?.[paramKey] || req.query?.[paramKey] || "",
+    );
 
     if (role === "admin" || !targetUserId || targetUserId === authUserId) {
       return next();

@@ -12,7 +12,12 @@ const router = Router();
 router.post("/", requireAuth, submitCode);
 
 // GET /api/submissions/user/:userId
-router.get("/user/:userId", requireAuth, allowSelfOrAdmin("userId"), getUserSubmissions);
+router.get(
+  "/user/:userId",
+  requireAuth,
+  allowSelfOrAdmin("userId"),
+  getUserSubmissions,
+);
 
 // GET /api/submissions/problem/:problemId
 router.get("/problem/:problemId", requireAuth, getSubmissionByProblem);

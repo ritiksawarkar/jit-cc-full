@@ -270,8 +270,7 @@ app.post("/api/ai-suggestions", async (req, res) => {
       return (
         response?.candidates?.[0]?.content?.parts
           ?.map((p) => (typeof p?.text === "string" ? p.text : ""))
-          .join("") ||
-        ""
+          .join("") || ""
       );
     };
 
@@ -311,8 +310,7 @@ app.post("/api/ai-suggestions", async (req, res) => {
       return (
         restJson?.candidates?.[0]?.content?.parts
           ?.map((p) => (typeof p?.text === "string" ? p.text : ""))
-          .join("") ||
-        ""
+          .join("") || ""
       );
     };
 

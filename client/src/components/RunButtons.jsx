@@ -538,9 +538,8 @@ export default function RunButtons() {
         whileTap={{ scale: 0.98 }}
         disabled={isSubmittingCode}
         onClick={onSubmitCode}
-        className={`min-h-10 rounded-xl bg-emerald-600 px-3 py-2 text-white transition sm:px-4 flex items-center gap-2 hover:bg-emerald-500 ${
-          isSubmittingCode ? "opacity-70 cursor-not-allowed" : ""
-        }`}
+        className={`min-h-10 rounded-xl bg-emerald-600 px-3 py-2 text-white transition sm:px-4 flex items-center gap-2 hover:bg-emerald-500 ${isSubmittingCode ? "opacity-70 cursor-not-allowed" : ""
+          }`}
       >
         <span className="text-sm font-semibold">{isSubmittingCode ? "Submitting..." : "Submit"}</span>
       </motion.button>
