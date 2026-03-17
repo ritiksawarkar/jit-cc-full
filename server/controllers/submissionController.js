@@ -112,7 +112,7 @@ export async function submitCode(req, res) {
       sourceCode,
       input = "",
     } = req.body || {};
-    const authenticatedUserId = req.user?.sub;
+    const authenticatedUserId = req.user?.id || req.user?.sub;
     const authenticatedRole = req.user?.role;
 
     const targetUserId =

@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
@@ -7,6 +6,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function signToken(user) {
   return jwt.sign(
     {
+      id: user.id,
+      userId: user.id,
       sub: user.id,
       email: user.email,
       name: user.name,
@@ -30,7 +31,7 @@ function userPayload(user) {
 // POST /api/auth/register  (also aliased to /api/auth/signup)
 export async function register(req, res) {
   try {
-    const { name, email, password } = req.body || {};
+    const { name, email, password, role } = req.body || {};
 
     if (!name || !email || !password) {
       return res
@@ -50,16 +51,23 @@ export async function register(req, res) {
         .json({ error: "Password must be at least 6 characters" });
     }
 
+    // Public signup must never create admin users.
+    if (role && String(role).toLowerCase() === "admin") {
+      return res.status(403).json({
+        error: "Admin accounts cannot be created through public registration",
+      });
+    }
+
     const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(409).json({ error: "Email already in use" });
     }
 
-    const hashedPassword = await bcrypt.hash(String(password), 12);
     const user = await User.create({
       name: String(name).trim().slice(0, 80),
       email: normalizedEmail,
-      password: hashedPassword,
+      password: String(password),
+      role: "student",
     });
 
     const token = signToken(user);
@@ -93,7 +101,7 @@ export async function login(req, res) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    const isMatch = await bcrypt.compare(String(password), user.password);
+    const isMatch = await user.comparePassword(String(password));
     if (!isMatch) {
       return res.status(401).json({ error: "Invalid email or password" });
     }

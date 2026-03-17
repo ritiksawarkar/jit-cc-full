@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { useCompilerStore } from "../store/useCompilerStore";
 import {
   executeCode,
@@ -49,6 +50,7 @@ function toReadableError(e) {
 }
 
 export default function RunButtons() {
+  const navigate = useNavigate();
   const {
     languageId,
     source,
@@ -484,6 +486,13 @@ export default function RunButtons() {
         const data = await loginWithEmail({ email: trimmedEmail, password: trimmedPassword });
         setAuthSession({ user: data.user, token: data.token });
         closeLoginModal();
+
+        const role = String(data?.user?.role || "student").toLowerCase();
+        if (role === "admin") {
+          navigate("/admin/dashboard", { replace: true });
+        } else {
+          navigate("/compiler", { replace: true });
+        }
       } else {
         // signup
         const trimmedName = loginForm.name.trim();
@@ -500,6 +509,8 @@ export default function RunButtons() {
         setLoginNotice('Account created. Please sign in.');
         setIsLoginOpen(true);
         setIsLoggingIn(false);
+
+        navigate("/compiler", { replace: true });
       }
     } catch (error) {
       const message = error?.response?.data?.error || error?.message || "Authentication failed";
@@ -611,6 +622,18 @@ export default function RunButtons() {
             >
               Submissions
             </button>
+            {String(currentUser?.role || "").toLowerCase() === "admin" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  navigate("/admin/dashboard");
+                }}
+                className="w-full rounded px-3 py-2 text-left transition hover:bg-white/10 hover:text-cyan-200"
+              >
+                Admin Dashboard
+              </button>
+            )}
             <button
               type="button"
               onClick={openLeaderboard}

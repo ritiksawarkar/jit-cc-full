@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema(
   {
@@ -30,6 +31,23 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+userSchema.pre("save", async function hashPassword(next) {
+  try {
+    if (!this.isModified("password")) {
+      return next();
+    }
+
+    this.password = await bcrypt.hash(String(this.password), 12);
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+});
+
+userSchema.methods.comparePassword = async function comparePassword(candidate) {
+  return bcrypt.compare(String(candidate), this.password);
+};
 
 // Map _id → id and strip sensitive fields from JSON output
 userSchema.set("toJSON", {

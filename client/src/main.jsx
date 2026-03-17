@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 import "./styles/index.css";
 import App from "./App";
 import ToastProvider from "./components/ToastProvider";
@@ -51,9 +52,11 @@ if (!window.__app_root) {
 }
 window.__app_root.render(
   <React.StrictMode>
-    <ThemeSync />
-    <ToastProvider>
-      <App />
-    </ToastProvider>
+    <BrowserRouter>
+      <ThemeSync />
+      <ToastProvider>
+        <App />
+      </ToastProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );

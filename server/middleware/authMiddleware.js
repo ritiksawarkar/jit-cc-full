@@ -9,7 +9,12 @@ export function requireAuth(req, res, next) {
 
     const token = auth.slice(7);
     const payload = jwt.verify(token, process.env.AUTH_JWT_SECRET);
-    req.user = payload;
+    req.user = {
+      ...payload,
+      id: payload?.id || payload?.userId || payload?.sub,
+      userId: payload?.userId || payload?.id || payload?.sub,
+      role: payload?.role || "student",
+    };
     return next();
   } catch (_err) {
     return res.status(401).json({ error: "Invalid token" });
@@ -18,7 +23,7 @@ export function requireAuth(req, res, next) {
 
 export function allowSelfOrAdmin(paramKey = "userId") {
   return (req, res, next) => {
-    const authUserId = String(req.user?.sub || "");
+    const authUserId = String(req.user?.id || req.user?.sub || "");
     const role = String(req.user?.role || "student");
     const targetUserId = String(
       req.params?.[paramKey] || req.query?.[paramKey] || "",
