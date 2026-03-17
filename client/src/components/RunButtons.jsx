@@ -1,7 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCompilerStore } from "../store/useCompilerStore";
-import { executeCode, loginWithEmail, signupWithEmail, getSettings, setProjectRoot } from "../services/api";
+import {
+  executeCode,
+  fetchUserSubmissions,
+  getSettings,
+  loginWithEmail,
+  setProjectRoot,
+  signupWithEmail,
+  submitCode,
+} from "../services/api";
 import { useToast } from "./ToastProvider";
 import { motion } from "framer-motion";
 import { Play, RotateCcw, MoreVertical } from "lucide-react";
@@ -82,9 +90,31 @@ export default function RunButtons() {
   const [loginError, setLoginError] = useState("");
   const [loginNotice, setLoginNotice] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isSubmittingCode, setIsSubmittingCode] = useState(false);
+  const [isSubmissionHistoryOpen, setIsSubmissionHistoryOpen] = useState(false);
+  const [submissionHistoryLoading, setSubmissionHistoryLoading] = useState(false);
+  const [submissionHistoryItems, setSubmissionHistoryItems] = useState([]);
   const menuRef = useRef(null);
   const settingsRef = useRef(null);
   const loginRef = useRef(null);
+
+  const buildExecutionPayload = () => {
+    const latestState = useCompilerStore.getState();
+    const latestTabs = latestState.tabs || [];
+    const latestActiveTabId = latestState.activeTabId;
+    const active = latestTabs.find((t) => t.id === latestActiveTabId) || null;
+
+    let stdinValue = String(latestState.stdin ?? "").replace(/\r\n/g, "\n");
+    if (stdinValue && !stdinValue.endsWith("\n")) {
+      stdinValue += "\n";
+    }
+
+    return {
+      language_id: active?.languageId ?? latestState.languageId ?? languageId,
+      source_code: active?.content ?? latestState.source ?? source,
+      stdin: stdinValue,
+    };
+  };
 
   const onRun = async () => {
     try {
@@ -97,23 +127,7 @@ export default function RunButtons() {
     setIsRunning(true);
     setResult(null);
     try {
-      const latestState = useCompilerStore.getState();
-      const latestTabs = latestState.tabs || [];
-      const latestActiveTabId = latestState.activeTabId;
-      const active = latestTabs.find((t) => t.id === latestActiveTabId) || null;
-
-      // Always send a string stdin payload and normalize CRLF for Judge0.
-      let stdinValue = String(latestState.stdin ?? "").replace(/\r\n/g, "\n");
-      // Add a trailing newline for interactive-style inputs (scanf, cin, input()).
-      if (stdinValue && !stdinValue.endsWith("\n")) {
-        stdinValue += "\n";
-      }
-
-      const payload = {
-        language_id: active?.languageId ?? latestState.languageId ?? languageId,
-        source_code: active?.content ?? latestState.source ?? source,
-        stdin: stdinValue,
-      };
+      const payload = buildExecutionPayload();
       const data = await executeCode(payload);
       setResult(data);
       try {
@@ -149,6 +163,66 @@ export default function RunButtons() {
       });
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const onSubmitCode = async () => {
+    if (!currentUser?.id) {
+      toast.push({
+        type: "error",
+        title: "Login required",
+        message: "Please sign in before submitting code.",
+      });
+      return;
+    }
+
+    let problemId = "";
+    try {
+      problemId = String(window.localStorage.getItem("compiler-problem-id") || "").trim();
+    } catch {
+      problemId = "";
+    }
+
+    // Problem ID is optional; backend will resolve a default problem if missing/invalid.
+    const hasValidProblemId = /^[a-fA-F0-9]{24}$/.test(problemId);
+
+    const payload = buildExecutionPayload();
+
+    try {
+      setIsSubmittingCode(true);
+      const response = await submitCode({
+        problemId: hasValidProblemId ? problemId : undefined,
+        language_id: payload.language_id,
+        language: String(payload.language_id),
+        sourceCode: payload.source_code,
+        input: payload.stdin,
+      });
+
+      const execution = response?.execution || {};
+      setResult({
+        status: execution.status || { description: response?.submission?.status || "Submitted" },
+        stdout: execution.stdout || response?.submission?.output || "",
+        stderr: execution.stderr || "",
+        compile_output: execution.compile_output || "",
+        time: response?.submission?.executionTime
+          ? String(Number(response.submission.executionTime) / 1000)
+          : "",
+        memory: response?.submission?.memory || null,
+      });
+
+      toast.push({
+        type: "success",
+        title: "Submission saved",
+        message: `Status: ${response?.submission?.status || "Saved"}`,
+      });
+    } catch (err) {
+      toast.push({
+        type: "error",
+        title: "Submission failed",
+        message: err?.response?.data?.error || err?.message || "Unable to submit code",
+      });
+    } finally {
+      setIsSubmittingCode(false);
     }
   };
 
@@ -301,6 +375,35 @@ export default function RunButtons() {
     setIsLeaderboardOpen(true);
   };
 
+  const openSubmissionHistory = async () => {
+    if (!currentUser?.id) {
+      toast.push({
+        type: "error",
+        title: "Login required",
+        message: "Please sign in to view submission history.",
+      });
+      return;
+    }
+
+    setIsMenuOpen(false);
+    setIsSubmissionHistoryOpen(true);
+    setSubmissionHistoryLoading(true);
+
+    try {
+      const response = await fetchUserSubmissions(currentUser.id);
+      setSubmissionHistoryItems(response?.submissions || []);
+    } catch (err) {
+      setSubmissionHistoryItems([]);
+      toast.push({
+        type: "error",
+        title: "History unavailable",
+        message: err?.response?.data?.error || err?.message || "Unable to load submissions",
+      });
+    } finally {
+      setSubmissionHistoryLoading(false);
+    }
+  };
+
   const handleThemeChange = (event) => {
     setTheme(event.target.value);
   };
@@ -412,7 +515,7 @@ export default function RunButtons() {
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
       <motion.button
         whileHover={{
           scale: 1.03,
@@ -422,19 +525,34 @@ export default function RunButtons() {
         whileTap={{ scale: 0.98 }}
         disabled={isRunning}
         onClick={onRun}
-        className={`px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition flex items-center gap-2 text-white ${isRunning ? "opacity-70 cursor-not-allowed" : ""
+        className={`min-h-10 rounded-xl bg-indigo-600 px-3 py-2 text-white transition sm:px-4 flex items-center gap-2 hover:bg-indigo-500 ${isRunning ? "opacity-70 cursor-not-allowed" : ""
           }`}
       >
-        <Play size={18} /> {isRunning ? "Running…" : "Run Code"}
+        <Play size={18} />
+        <span className="text-sm font-semibold">{isRunning ? "Running…" : "Run"}</span>
+        <span className="hidden text-sm text-white/90 sm:inline">Code</span>
+      </motion.button>
+
+      <motion.button
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.98 }}
+        disabled={isSubmittingCode}
+        onClick={onSubmitCode}
+        className={`min-h-10 rounded-xl bg-emerald-600 px-3 py-2 text-white transition sm:px-4 flex items-center gap-2 hover:bg-emerald-500 ${
+          isSubmittingCode ? "opacity-70 cursor-not-allowed" : ""
+        }`}
+      >
+        <span className="text-sm font-semibold">{isSubmittingCode ? "Submitting..." : "Submit"}</span>
       </motion.button>
 
       <motion.button
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.98 }}
         onClick={clearIO}
-        className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition flex items-center gap-2 text-white"
+        className="min-h-10 rounded-xl bg-white/10 px-3 py-2 text-white transition hover:bg-white/20 flex items-center gap-2"
       >
-        <RotateCcw size={18} /> Clear IO
+        <RotateCcw size={18} />
+        <span className="hidden text-sm sm:inline">Clear IO</span>
       </motion.button>
 
       <motion.button
@@ -452,9 +570,9 @@ export default function RunButtons() {
             setDepsDetected({ error: (err?.response?.data?.error || err?.message || String(err)) });
           }
         }}
-        className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition flex items-center gap-2 text-white"
+        className="min-h-10 rounded-xl bg-white/10 px-3 py-2 text-white transition hover:bg-white/20 flex items-center gap-2"
       >
-        Deps
+        <span className="text-sm font-medium">Deps</span>
       </motion.button>
 
       <div className="relative" ref={menuRef}>
@@ -469,7 +587,7 @@ export default function RunButtons() {
         </motion.button>
 
         {isMenuOpen && (
-          <div className="absolute right-0 mt-2 w-40 rounded-lg border border-white/10 bg-black/85 p-2 text-sm text-white shadow-lg backdrop-blur">
+          <div className="absolute right-0 z-50 mt-2 w-44 rounded-lg border border-white/10 bg-black/85 p-2 text-sm text-white shadow-lg backdrop-blur">
             <div className="px-3 pb-2 text-xs uppercase tracking-wider text-white/40">
               {currentUser ? "Signed In" : "Guest Mode"}
             </div>
@@ -486,6 +604,13 @@ export default function RunButtons() {
               className="w-full rounded px-3 py-2 text-left transition hover:bg-white/10 hover:text-cyan-200"
             >
               Settings
+            </button>
+            <button
+              type="button"
+              onClick={openSubmissionHistory}
+              className="w-full rounded px-3 py-2 text-left transition hover:bg-white/10 hover:text-cyan-200"
+            >
+              Submissions
             </button>
             <button
               type="button"
@@ -516,7 +641,7 @@ export default function RunButtons() {
 
       {isSettingsOpen &&
         createPortal(
-          <div className="fixed inset-0 z-40 flex items-center justify-center">
+          <div className="fixed inset-0 z-40 flex items-center justify-center p-3">
             <div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setIsSettingsOpen(false)}
@@ -527,15 +652,15 @@ export default function RunButtons() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 12 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
-              className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-gray-950/95 text-white shadow-2xl"
+              className="relative z-10 max-h-[90vh] w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-gray-950/95 text-white shadow-2xl"
             >
-              <div className="flex flex-col p-6">
+              <div className="flex flex-col p-4 sm:p-5">
                 <div className="mb-4">
-                  <h3 className="text-lg font-semibold tracking-wide">Settings</h3>
+                  <h3 className="text-base font-semibold tracking-wide sm:text-lg">Settings</h3>
                   <p className="mt-1 text-sm text-white/60">Personalize the editor experience.</p>
                 </div>
 
-                <div className="max-h-[48vh] overflow-y-auto pr-2 space-y-5">
+                <div className="max-h-[48vh] overflow-y-auto pr-2 space-y-4">
                   <div>
                     <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-cyan-300">
                       Project Root
@@ -761,7 +886,7 @@ export default function RunButtons() {
 
       {isLoginOpen &&
         createPortal(
-          <div className="fixed inset-0 z-40 flex items-center justify-center">
+          <div className="fixed inset-0 z-40 flex items-center justify-center p-3">
             <div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={closeLoginModal}
@@ -772,7 +897,7 @@ export default function RunButtons() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 12 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
-              className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-gray-950/95 p-6 text-white shadow-2xl"
+              className="relative z-10 max-h-[90vh] w-full max-w-sm overflow-auto rounded-2xl border border-white/10 bg-gray-950/95 p-4 text-white shadow-2xl sm:p-6"
             >
               <div className="mb-4">
                 <h3 className="text-lg font-semibold tracking-wide">
@@ -955,14 +1080,63 @@ export default function RunButtons() {
         )}
 
       {isLeaderboardOpen && <Leaderboard onClose={() => setIsLeaderboardOpen(false)} />}
+      {isSubmissionHistoryOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3">
+            <div
+              className="absolute inset-0 bg-black/60"
+              onClick={() => setIsSubmissionHistoryOpen(false)}
+            />
+            <div className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl border border-white/10 bg-gray-950/95 p-4 text-white shadow-2xl sm:p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-base font-semibold tracking-wide sm:text-lg">Submission History</h3>
+                <button
+                  type="button"
+                  onClick={() => setIsSubmissionHistoryOpen(false)}
+                  className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-white/80"
+                >
+                  Close
+                </button>
+              </div>
+
+              {submissionHistoryLoading ? (
+                <p className="text-sm text-white/60">Loading submissions...</p>
+              ) : submissionHistoryItems.length === 0 ? (
+                <p className="text-sm text-white/60">No submissions found.</p>
+              ) : (
+                <div className="space-y-2">
+                  {submissionHistoryItems.map((item) => (
+                    <div
+                      key={String(item._id || `${item.problemId}-${item.createdAt}`)}
+                      className="rounded-lg border border-white/10 bg-black/35 p-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-white/90">
+                          {item.status} • {item.language}
+                        </div>
+                        <div className="text-xs text-white/60">
+                          {new Date(item.createdAt).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="mt-1 text-xs text-white/65">
+                        Time: {Number(item.executionTime || 0)} ms
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
       {isDepsOpen &&
         createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3">
             <div className="absolute inset-0 bg-black/60" onClick={() => setIsDepsOpen(false)} />
             <motion.div
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="relative z-10 w-full max-w-lg rounded-2xl border border-white/10 bg-gray-950/95 p-6 text-white shadow-2xl"
+              className="relative z-10 max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl border border-white/10 bg-gray-950/95 p-4 text-white shadow-2xl sm:p-6"
             >
               <h3 className="text-lg font-semibold">Detected Dependencies</h3>
               <p className="mt-1 text-sm text-white/60">Review detected packages before installing (dry-run).</p>

@@ -56,28 +56,26 @@ export default function OutputPanel() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto">
           <button
             type="button"
             onClick={() => setOutputPanelView("output")}
-            className={`px-3 py-1 rounded-md text-sm font-medium transition ${
-              outputPanelView === "output" ? "bg-cyan-500 text-black" : "text-white/70 bg-white/3"
-            }`}
+            className={`ui-tab ${outputPanelView === "output" ? "ui-tab-active" : ""
+              }`}
           >
             Output
           </button>
           <button
             type="button"
             onClick={() => setOutputPanelView("explain")}
-            className={`px-3 py-1 rounded-md text-sm font-medium transition ${
-              outputPanelView === "explain" ? "bg-cyan-500 text-black" : "text-white/70 bg-white/3"
-            }`}
+            className={`ui-tab ${outputPanelView === "explain" ? "ui-tab-active" : ""
+              }`}
           >
             Error Explanation
           </button>
         </div>
-        <div className="text-xs text-white/50">
+        <div className="text-xs text-white/50 sm:text-right">
           {result?.status?.description ? `Status: ${result.status.description}` : ""}
           {result?.time ? ` • Time: ${result.time}s` : ""}
           {result?.memory ? ` • Memory: ${result.memory} KB` : ""}
@@ -85,8 +83,8 @@ export default function OutputPanel() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto rounded-xl p-3 font-mono text-sm bg-black/50 border border-white/10">
-  {outputPanelView === "output" ? (
+      <div className="ui-mono-panel flex-1 overflow-auto p-2 text-xs sm:p-3 sm:text-sm">
+        {outputPanelView === "output" ? (
           <AnimatePresence mode="wait">
             {isRunning ? (
               <motion.div
@@ -126,7 +124,7 @@ export default function OutputPanel() {
                     await explainCurrentError();
                   }}
                   disabled={explainLoading}
-                  className="rounded px-3 py-1 text-sm bg-white/6 hover:bg-white/10 transition text-white"
+                  className="ui-tab min-h-9 bg-white/6 px-3 py-1 text-sm text-white"
                 >
                   {explainLoading ? "Explaining…" : "Explain Error"}
                 </button>

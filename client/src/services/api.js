@@ -34,6 +34,38 @@ export async function executeCode({ language_id, source_code, stdin }) {
   return res.data;
 }
 
+export async function submitCode({
+  userId,
+  problemId,
+  language,
+  language_id,
+  sourceCode,
+  input,
+}) {
+  const res = await API.post("/api/submissions", {
+    userId,
+    problemId,
+    language,
+    language_id,
+    sourceCode,
+    input,
+  });
+  return res.data;
+}
+
+export async function fetchUserSubmissions(userId) {
+  const res = await API.get(`/api/submissions/user/${encodeURIComponent(userId)}`);
+  return res.data;
+}
+
+export async function fetchSubmissionsByProblem(problemId, userId) {
+  const params = userId ? `?userId=${encodeURIComponent(userId)}` : "";
+  const res = await API.get(
+    `/api/submissions/problem/${encodeURIComponent(problemId)}${params}`,
+  );
+  return res.data;
+}
+
 // AI function with improved response for GitHub Copilot-like behavior
 export async function getAISuggestions(prompt) {
   try {
@@ -42,7 +74,11 @@ export async function getAISuggestions(prompt) {
   } catch (err) {
     // Normalize axios cancelation / error objects so caller gets a clear Error
     if (err && err.__CANCEL__) {
-      throw { type: "cancelation", msg: err.message || "request canceled" };
+      const cancelError = new Error(err.message || "request canceled");
+      cancelError.type = "cancelation";
+      cancelError.code = "ERR_CANCELED";
+      cancelError.msg = err.message || "operation is manually canceled";
+      throw cancelError;
     }
     // Re-throw a simple Error where possible
     const message =

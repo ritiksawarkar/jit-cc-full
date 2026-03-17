@@ -5,6 +5,7 @@ import morgan from "morgan";
 import jwt from "jsonwebtoken";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
+import submissionRoutes from "./routes/submissionRoutes.js";
 import fs, { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +25,18 @@ app.use(
 
 app.use(express.json({ limit: "2mb" })); // Increased limit for AI prompts
 app.use(morgan("dev"));
+
+// Normalize body parser failures to JSON responses (avoid HTML stack traces)
+app.use((err, _req, res, next) => {
+  if (!err) return next();
+  if (err.type === "entity.too.large") {
+    return res.status(413).json({ error: "Payload too large" });
+  }
+  if (err.type === "entity.parse.failed") {
+    return res.status(400).json({ error: "Invalid JSON body" });
+  }
+  return next(err);
+});
 
 const PORT = process.env.PORT || 9009;
 const HOST = process.env.JUDGE0_HOST; // e.g., judge029.p.rapidapi.com
@@ -240,6 +253,69 @@ app.post("/api/ai-suggestions", async (req, res) => {
       return res.status(400).json({ error: "Prompt is required" });
     }
 
+    const extractGeminiText = async (response) => {
+      try {
+        if (typeof response?.text === "function") {
+          const viaFn = await response.text();
+          if (typeof viaFn === "string" && viaFn.trim()) return viaFn;
+        }
+      } catch {
+        // ignore and try other response shapes
+      }
+
+      if (typeof response?.text === "string" && response.text.trim()) {
+        return response.text;
+      }
+
+      return (
+        response?.candidates?.[0]?.content?.parts
+          ?.map((p) => (typeof p?.text === "string" ? p.text : ""))
+          .join("") ||
+        ""
+      );
+    };
+
+    const requestModelText = async (model, prompt) => {
+      // 1) Try official SDK
+      try {
+        const sdkResponse = await ai.models.generateContent({
+          model,
+          contents: prompt,
+        });
+        const sdkText = await extractGeminiText(sdkResponse);
+        if (sdkText.trim()) {
+          return sdkText;
+        }
+      } catch {
+        // fall through to REST fallback
+      }
+
+      // 2) Fallback to direct REST API for compatibility across SDK versions
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(GEMINI_KEY)}`;
+      const restRes = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      });
+
+      const restJson = await restRes.json().catch(() => ({}));
+      if (!restRes.ok) {
+        throw new Error(
+          restJson?.error?.message ||
+            `Gemini REST error (${restRes.status}) for model ${model}`,
+        );
+      }
+
+      return (
+        restJson?.candidates?.[0]?.content?.parts
+          ?.map((p) => (typeof p?.text === "string" ? p.text : ""))
+          .join("") ||
+        ""
+      );
+    };
+
     const candidateModels = [
       process.env.GEMINI_MODEL,
       "gemini-2.5-flash",
@@ -249,20 +325,13 @@ app.post("/api/ai-suggestions", async (req, res) => {
     let lastError = null;
     for (const model of candidateModels) {
       try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: code,
-        });
-        const text =
-          typeof response?.text === "string"
-            ? response.text
-            : response?.candidates?.[0]?.content?.parts
-                ?.map((p) => (typeof p?.text === "string" ? p.text : ""))
-                .join("") || "";
+        const text = await requestModelText(model, code);
 
         if (text.trim()) {
           return res.json({ suggestions: text, model, fallback: false });
         }
+
+        lastError = new Error(`No text returned from model ${model}`);
       } catch (err) {
         lastError = err;
       }
@@ -291,6 +360,11 @@ app.post("/api/ai-suggestions", async (req, res) => {
 // Authentication Routes (MongoDB-backed)
 // --------------------
 app.use("/api/auth", authRoutes);
+
+// --------------------
+// Submission Routes (MongoDB-backed)
+// --------------------
+app.use("/api/submissions", submissionRoutes);
 
 // --------------------
 // Leaderboard endpoints

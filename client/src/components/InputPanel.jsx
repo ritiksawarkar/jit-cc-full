@@ -12,12 +12,12 @@ export default function InputPanel() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-sm text-white/70">Input (stdin)</div>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-semibold uppercase tracking-wide text-white/65">Input (stdin)</div>
         <div className="flex items-center gap-2">
           <select
             aria-label="Timer hours"
-            className="bg-black/50 backdrop-blur-xl border border-white/10 rounded-lg px-2 py-1 text-sm text-white hover:bg-white/10 transition-colors relative z-50"
+            className="ui-control relative z-50 px-2"
             onChange={(e) => {
               const hours = Number(e.target.value) || 0;
               if (hours > 0) {
@@ -50,7 +50,7 @@ export default function InputPanel() {
                 type="button"
                 aria-label={timerRunning ? "Pause timer" : "Start timer"}
                 onClick={() => setTimerRunning((s) => !s)}
-                className="p-2 rounded bg-white/5 hover:bg-white/10 transition text-white flex items-center justify-center"
+                className="flex min-h-10 min-w-10 items-center justify-center rounded bg-white/5 p-2 text-white transition hover:bg-white/10"
                 title={timerRunning ? "Pause" : "Play"}
               >
                 {timerRunning ? <Pause size={16} /> : <Play size={16} />}
@@ -60,12 +60,12 @@ export default function InputPanel() {
         </div>
       </div>
       <textarea
-        className="flex-1 w-full bg-black/50 backdrop-blur-xl border border-white/10 rounded-2xl p-3 resize-none outline-none focus:ring-2 focus:ring-indigo-500/40 font-mono text-white placeholder-white/50"
+        className="ui-mono-panel flex-1 w-full resize-none p-3 text-sm text-white placeholder-white/50 outline-none focus:ring-2 focus:ring-indigo-500/40"
         placeholder="Type full stdin before Run (example: 5 or multi-line values)…"
         value={stdin}
         onChange={(e) => setStdin(e.target.value)}
       />
-      <div className="mt-2 text-xs text-white/55">
+      <div className="mt-2 text-xs text-white/50">
         Input is non-interactive: enter all values here first, then click Run.
       </div>
     </div>

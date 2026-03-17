@@ -162,8 +162,6 @@ export default function FileExplorer() {
       const data = await getProjectStructure();
       const structure = data.structure || [];
 
-      console.log("📁 Project Structure (backend filtered):", { items: structure.map((i) => i.name) });
-
       setProjectStructure(structure);
     } catch (err) {
       console.error("Failed to load project structure:", err);
@@ -483,8 +481,6 @@ export default function FileExplorer() {
         newPath = newPath.substring(1);
       }
       
-      console.log("Creating file at path:", newPath);
-      
   await createFile(newPath, "// New file\n");
       
       // Reload structure
@@ -615,7 +611,7 @@ export default function FileExplorer() {
                   onClick={(e) => {
                     e.stopPropagation();
                     // immediate create untitled file inside this folder
-                    try { handleQuickCreateUntitledFile(itemPath); } catch (err) { console.error(err); }
+                    handleQuickCreateUntitledFile(itemPath).catch((err) => console.error(err));
                   }}
                   className="p-1 rounded hover:bg-white/10 text-white/40"
                 >
@@ -881,8 +877,8 @@ export default function FileExplorer() {
     <ToastProvider>
     <div className="h-full flex flex-col bg-gray-900/50 border-r border-white/10 overflow-hidden file-explorer">
       {/* Explorer Header */}
-      <div className="px-3 py-2 border-b border-white/10">
-        <div className="text-xs font-semibold uppercase tracking-widest text-white/70">
+      <div className="ui-header">
+        <div className="text-xs font-semibold uppercase tracking-wide text-white/70">
           Explorer
         </div>
       </div>
@@ -978,7 +974,9 @@ export default function FileExplorer() {
                     <button
                       type="button"
                       title="Quick create untitled file in root"
-                      onClick={() => { try { handleQuickCreateUntitledFile(''); } catch (err) { console.error(err); } }}
+                      onClick={() => {
+                        handleQuickCreateUntitledFile("").catch((err) => console.error(err));
+                      }}
                       className="p-1 rounded hover:bg-white/10 text-white/70"
                     >
                       <FilePlus size={14} />
@@ -1020,7 +1018,9 @@ export default function FileExplorer() {
                     <button
                       type="button"
                       title="Quick create untitled folder"
-                      onClick={() => { try { handleQuickCreateUntitledFolder(currentPath.join('/')); } catch (err) { console.error(err); } }}
+                      onClick={() => {
+                        handleQuickCreateUntitledFolder(currentPath.join('/')).catch((err) => console.error(err));
+                      }}
                       className="p-1 rounded hover:bg-white/10 text-white/70"
                     >
                       <FolderPlus size={14} />
@@ -1086,7 +1086,7 @@ export default function FileExplorer() {
       </div>
 
       {/* Footer Actions */}
-      <div className="border-t border-white/10 px-2 py-2 bg-black/20 space-y-1">
+      <div className="border-t border-white/10 bg-black/20 px-2.5 py-2 space-y-1.5">
         {showCreateFile && (
           <div className="flex gap-1">
             <input
@@ -1122,7 +1122,7 @@ export default function FileExplorer() {
         <button
           type="button"
           onClick={() => setShowCreateFile(true)}
-          className="w-full px-2 py-1 rounded text-xs text-white/60 hover:text-white/80 hover:bg-white/10 transition flex items-center justify-center gap-1"
+          className="w-full min-h-9 rounded-md px-2 py-1.5 text-xs text-white/65 transition hover:bg-white/10 hover:text-white/85 flex items-center justify-center gap-1"
           title="Create new file"
         >
           <Plus size={12} /> New File

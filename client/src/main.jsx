@@ -30,6 +30,22 @@ function ThemeSync() {
 
 const container = document.getElementById("root");
 if (!container) throw new Error('Root container not found');
+
+if (typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event?.reason;
+    const isCanceled =
+      reason?.type === "cancelation" ||
+      reason?.code === "ERR_CANCELED" ||
+      reason?.msg === "operation is manually canceled" ||
+      reason?.message === "operation is manually canceled";
+
+    if (isCanceled) {
+      event.preventDefault();
+    }
+  });
+}
+
 if (!window.__app_root) {
   window.__app_root = createRoot(container);
 }

@@ -21,6 +21,32 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .ui-surface {
+    @apply rounded-xl border border-white/10 bg-black/45 backdrop-blur-xl;
+  }
+
+  .ui-header {
+    @apply border-b border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/65 sm:px-4 sm:py-3;
+  }
+
+  .ui-tab {
+    @apply min-h-10 rounded-md bg-white/5 px-3 py-2 text-sm font-medium text-white/75 transition hover:bg-white/10;
+  }
+
+  .ui-tab-active {
+    @apply bg-cyan-500 text-black;
+  }
+
+  .ui-control {
+    @apply min-h-10 rounded-lg border border-white/15 bg-black/35 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/60;
+  }
+
+  .ui-mono-panel {
+    @apply rounded-xl border border-white/10 bg-black/50 p-3 font-mono text-sm;
+  }
+}
+
 /* Reusable glass panel */
 .glass { @apply bg-glass backdrop-blur-xl border border-white/10 rounded-2xl; }
 

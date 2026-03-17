@@ -6,18 +6,19 @@ import { getAISuggestions, saveFile, renameFile, deleteFile } from "../services/
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import { Save, CheckCircle, AlertCircle } from "lucide-react";
+import ProblemStatementPanel from "./ProblemStatementPanel";
 import {
   getDefaultFileNameForMonaco,
   getMonacoLanguage,
 } from "../lib/languageUtils";
 
 // Basic collaborative client ID
-const CLIENT_ID = typeof window !== 'undefined' ? (window.localStorage.getItem('collab-client-id') || (function(){ const id = `${Date.now()}-${Math.random().toString(36).slice(2,9)}`; try{ window.localStorage.setItem('collab-client-id', id); }catch{} return id; })()) : `srv-${Date.now()}`;
+const CLIENT_ID = typeof window !== 'undefined' ? (window.localStorage.getItem('collab-client-id') || (function () { const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`; try { window.localStorage.setItem('collab-client-id', id); } catch { } return id; })()) : `srv-${Date.now()}`;
 
 /**
  * EditorPanel with redesigned futuristic AI toolkit modal
  */
-export default function EditorPanel() {
+export default function EditorPanel({ compact = false } = {}) {
   const {
     source,
     setSource,
@@ -46,12 +47,6 @@ export default function EditorPanel() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const defaultProblemStatement = `Smart India Hackathon 2025: Develop a unified citizen service portal that aggregates schemes, eligibility checks, and application tracking across central and state departments. The solution should
-- provide multilingual support for at least three Indian languages,
-- leverage AI to recommend relevant schemes based on user profiles,
-- ensure accessibility for low-bandwidth regions, and
-- offer secure integrations for departmental data exchange via open APIs.`;
-  const [problemStatement, setProblemStatement] = useState(defaultProblemStatement);
 
   // --- Complete language mapping from Judge0 IDs to Monaco ---
   const monacoLang = useMemo(
@@ -142,7 +137,7 @@ export default function EditorPanel() {
               }
             }
           }
-        } catch (e) {}
+        } catch (e) { }
       });
     } catch (e) {
       console.warn('Collab WS init failed', e);
@@ -196,9 +191,9 @@ export default function EditorPanel() {
       return;
     }
     // unsubscribe previous subscriptions on ws side by clearing all and re-subscribing simple approach
-    try { ws.send(JSON.stringify({ type: 'unsubscribe-all' })); } catch {}
+    try { ws.send(JSON.stringify({ type: 'unsubscribe-all' })); } catch { }
     if (activePath) {
-      try { ws.send(JSON.stringify({ type: 'subscribe', filePath: activePath })); } catch {}
+      try { ws.send(JSON.stringify({ type: 'subscribe', filePath: activePath })); } catch { }
     }
 
     return () => {
@@ -206,7 +201,7 @@ export default function EditorPanel() {
         if (ws && ws.readyState === WebSocket.OPEN && activePath) {
           ws.send(JSON.stringify({ type: 'unsubscribe', filePath: activePath }));
         }
-      } catch {}
+      } catch { }
     };
   }, [tabs, activeTabId]);
 
@@ -223,7 +218,7 @@ export default function EditorPanel() {
       try {
         const payload = { type: 'edit', filePath: activePath, content: String(state.source || ''), clientId: CLIENT_ID, timestamp: Date.now() };
         ws.send(JSON.stringify(payload));
-      } catch (e) {}
+      } catch (e) { }
     };
 
     // debounce: 800ms
@@ -272,7 +267,7 @@ export default function EditorPanel() {
         // Fallback to scrollIntoView if anything goes wrong (non-fatal)
         try {
           activeTabRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        } catch {}
+        } catch { }
       }
     }
   }, [activeTabId]);
@@ -317,7 +312,7 @@ export default function EditorPanel() {
     try {
       const closeOthers = useCompilerStore.getState().closeOthers;
       if (closeOthers) closeOthers(tabId);
-    } catch (e) {}
+    } catch (e) { }
     closeMenu();
   };
 
@@ -325,7 +320,7 @@ export default function EditorPanel() {
     try {
       const closeAll = useCompilerStore.getState().closeAll;
       if (closeAll) closeAll();
-    } catch (e) {}
+    } catch (e) { }
     closeMenu();
   };
 
@@ -348,7 +343,7 @@ export default function EditorPanel() {
             // Notify explorer to reload
             try {
               window.dispatchEvent(new CustomEvent("project-structure-changed"));
-            } catch {}
+            } catch { }
           })
           .catch((err) => {
             console.error("Delete file API failed:", err);
@@ -357,7 +352,7 @@ export default function EditorPanel() {
       } catch (err) {
         console.error("Delete API error:", err);
       }
-    } catch (e) {}
+    } catch (e) { }
     if (openMenuTabId === tabId) {
       closeMenu();
     }
@@ -367,14 +362,14 @@ export default function EditorPanel() {
     try {
       const sel = useCompilerStore.getState().selectTab;
       if (sel) sel(tabId);
-    } catch (e) {}
+    } catch (e) { }
     closeMenu();
   };
   const handleAddTab = () => {
     try {
       const add = useCompilerStore.getState().addTab;
       if (add) add();
-    } catch (e) {}
+    } catch (e) { }
     closeMenu();
   };
 
@@ -382,7 +377,7 @@ export default function EditorPanel() {
     try {
       const closeT = useCompilerStore.getState().closeTab;
       if (closeT) closeT(tabId);
-    } catch (e) {}
+    } catch (e) { }
     if (openMenuTabId === tabId) {
       closeMenu();
     }
@@ -482,7 +477,7 @@ export default function EditorPanel() {
       return;
     }
     const ext = extMatch[1].toLowerCase();
-    const allowedExts = new Set(["js","jsx","ts","tsx","py","java","c","cpp","rs","go","html","css","json","md","txt","sh","bash","yml","yaml"]);
+    const allowedExts = new Set(["js", "jsx", "ts", "tsx", "py", "java", "c", "cpp", "rs", "go", "html", "css", "json", "md", "txt", "sh", "bash", "yml", "yaml"]);
     if (!allowedExts.has(ext)) {
       setEditingError(`Unsupported extension '.${ext}'.`);
       return;
@@ -494,7 +489,7 @@ export default function EditorPanel() {
       const resp = await renameFile(oldPath, trimmed);
       const rn = useCompilerStore.getState().renameTab;
       if (rn) rn(tabId, trimmed, resp?.newPath || undefined);
-      try { window.dispatchEvent(new CustomEvent("project-structure-changed")); } catch {}
+      try { window.dispatchEvent(new CustomEvent("project-structure-changed")); } catch { }
       handleCancelInlineRename();
     } catch (err) {
       console.error("Rename failed:", err);
@@ -566,7 +561,7 @@ export default function EditorPanel() {
         console.error("AI request failed:", err);
         try {
           alert(`AI request failed: ${err?.response?.data?.error || err.message || String(err)}`);
-        } catch {}
+        } catch { }
       }
     } finally {
       setIsLoading(false);
@@ -576,19 +571,19 @@ export default function EditorPanel() {
 
   const handleSave = useCallback(async () => {
     if (!activeTabId || !source) return;
-    
+
     // Get active tab to determine file path
     const activeTab = tabs.find((t) => t.id === activeTabId);
     if (!activeTab) return;
 
-  // Construct file path from tab.path if available, otherwise from tab.name
-  // Ensure project-relative path (no leading slash)
-  const rawPath = activeTab.path || activeTab.name;
-  const filePath = rawPath.startsWith("/") ? rawPath.slice(1) : rawPath;
+    // Construct file path from tab.path if available, otherwise from tab.name
+    // Ensure project-relative path (no leading slash)
+    const rawPath = activeTab.path || activeTab.name;
+    const filePath = rawPath.startsWith("/") ? rawPath.slice(1) : rawPath;
 
     setIsSaving(true);
     setSaveStatus(null);
-    
+
     try {
       const result = await saveFile(filePath, source);
       if (result.success) {
@@ -683,7 +678,7 @@ export default function EditorPanel() {
               <Save size={16} />
               <span className="text-sm">Save</span>
             </button>
-            
+
             {/* Status Indicator */}
             {saveStatus === "success" && (
               <div className="flex items-center gap-1 text-emerald-400 animate-pulse">
@@ -698,7 +693,7 @@ export default function EditorPanel() {
               </div>
             )}
           </div>
-          
+
           <button
             onClick={() => setIsModalOpen(true)}
             className="bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 rounded-lg text-white font-semibold shadow-lg hover:scale-105 transition-all duration-200 border border-cyan-400/30 hover:border-cyan-400/60"
@@ -712,8 +707,8 @@ export default function EditorPanel() {
       </div>
 
       {/* VS Code style tab bar - make flush with editor (no gap) */}
-        <div className="flex items-center gap-2 border border-white/10 border-b-0 rounded-t-xl overflow-hidden">
-        <div 
+      <div className="flex items-center gap-2 border border-white/10 border-b-0 rounded-t-xl overflow-hidden">
+        <div
           ref={tabsContainerRef}
           className="flex items-center gap-2 overflow-x-auto whitespace-nowrap flex-nowrap scroll-smooth bg-transparent"
           style={{ scrollbarWidth: 'thin' }}
@@ -722,8 +717,8 @@ export default function EditorPanel() {
             const isActive = tab.id === activeTabId;
             const menuOpen = openMenuTabId === tab.id;
             return (
-              <div 
-                key={tab.id} 
+              <div
+                key={tab.id}
                 ref={isActive ? activeTabRef : null}
                 className="relative inline-flex items-center"
               >
@@ -740,11 +735,10 @@ export default function EditorPanel() {
                       closeMenu();
                     }
                   }}
-                  className={`group inline-flex items-center rounded-t-lg border px-4 py-2 shadow-inner transition-colors ${
-                    isActive
+                  className={`group inline-flex items-center rounded-t-lg border px-4 py-2 shadow-inner transition-colors ${isActive
                       ? "border-white/10 border-b-0 bg-black/60 text-cyan-100"
                       : "border-transparent bg-black/30 text-white/60 hover:border-white/10 hover:bg-black/50 hover:text-cyan-100"
-                  }`}
+                    }`}
                 >
                   {editingTabId === tab.id ? (
                     <input
@@ -767,11 +761,10 @@ export default function EditorPanel() {
                   )}
                   <button
                     type="button"
-                    className={`ml-3 flex h-6 w-6 items-center justify-center rounded text-white/40 transition ${
-                      menuOpen
+                    className={`ml-3 flex h-6 w-6 items-center justify-center rounded text-white/40 transition ${menuOpen
                         ? "bg-white/10 text-cyan-200"
                         : "hover:bg-white/10 hover:text-cyan-100"
-                    }`}
+                      }`}
                     onClick={(event) => {
                       event.stopPropagation();
                       if (openMenuTabId === tab.id) {
@@ -792,7 +785,7 @@ export default function EditorPanel() {
               </div>
             );
           })}
-          
+
           {/* Add tab button inside the scroll area so it stays inline with tabs */}
           <button
             type="button"
@@ -843,11 +836,10 @@ export default function EditorPanel() {
                 <button
                   type="button"
                   disabled={tabs.length <= 1}
-                  className={`w-full rounded px-3 py-2 text-left text-sm transition ${
-                    tabs.length > 1
+                  className={`w-full rounded px-3 py-2 text-left text-sm transition ${tabs.length > 1
                       ? "text-white/80 hover:bg-white/10 hover:text-cyan-100"
                       : "cursor-not-allowed text-white/25"
-                  }`}
+                    }`}
                   onClick={() => {
                     if (tabs.length > 1) {
                       handleCloseTab(activeMenuTab.id);
@@ -859,11 +851,10 @@ export default function EditorPanel() {
                 <button
                   type="button"
                   disabled={tabs.length <= 1}
-                  className={`w-full rounded px-3 py-2 text-left text-sm transition ${
-                    tabs.length > 1
+                  className={`w-full rounded px-3 py-2 text-left text-sm transition ${tabs.length > 1
                       ? "text-white/80 hover:bg-white/10 hover:text-cyan-100"
                       : "cursor-not-allowed text-white/25"
-                  }`}
+                    }`}
                   onClick={() => {
                     if (tabs.length > 1) {
                       handleCloseOthers(activeMenuTab.id);
@@ -896,7 +887,7 @@ export default function EditorPanel() {
 
       <PanelGroup direction="vertical" className="flex-1 flex flex-col gap-2">
         <Panel defaultSize={65} minSize={35} className="flex">
-      <div className="flex-1 overflow-hidden rounded-b-xl border border-white/10 border-t-0 shadow-2xl">
+          <div className="flex-1 overflow-hidden rounded-b-xl border border-white/10 border-t-0 shadow-2xl">
             <Editor
               value={source}
               onMount={(editor, monacoInstance) => {
@@ -913,7 +904,7 @@ export default function EditorPanel() {
                     // Mark as unsaved
                     setUnsavedFile(st.activeTabId, true);
                   }
-                } catch (e) {}
+                } catch (e) { }
               }}
               height="100%"
               language={monacoLang}
@@ -932,24 +923,16 @@ export default function EditorPanel() {
             />
           </div>
         </Panel>
-        <PanelResizeHandle className="h-2 my-2 rounded bg-white/5 transition-colors hover:bg-white/10" />
-        <Panel defaultSize={35} minSize={15} className="flex">
-          <div className="flex-1 rounded-xl border border-white/10 bg-gray-900/60 shadow-lg">
-            <div className="border-b border-white/10 px-4 py-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-200">
-                Problem Statement
-              </h2>
-            </div>
-            <div className="p-4">
-              <textarea
-                value={problemStatement}
-                onChange={(e) => setProblemStatement(e.target.value)}
-                placeholder="Document the challenge, constraints, and expected behavior here..."
-                className="h-28 w-full resize-none rounded-lg border border-cyan-500/20 bg-gray-800/80 p-3 font-mono text-sm text-cyan-100 placeholder:text-cyan-100/40 outline-none focus:border-cyan-400/40 focus:ring-1 focus:ring-cyan-400/20 transition-all duration-200"
-              />
-            </div>
-          </div>
-        </Panel>
+        {!compact && (
+          <>
+            <PanelResizeHandle className="h-2 my-2 rounded bg-white/5 transition-colors hover:bg-white/10" />
+            <Panel defaultSize={35} minSize={15} className="flex">
+              <div className="min-h-0 flex-1">
+                <ProblemStatementPanel />
+              </div>
+            </Panel>
+          </>
+        )}
       </PanelGroup>
 
       {/* Inline rename implemented in tab labels (no modal) */}
@@ -957,7 +940,7 @@ export default function EditorPanel() {
       {/* Futuristic Toolkit Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-start justify-end p-4 pt-20">
+          <div className="fixed inset-0 z-50 flex items-start justify-end p-3 pt-16 sm:p-4 sm:pt-20">
             {/* Backdrop */}
             <div
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -970,7 +953,7 @@ export default function EditorPanel() {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 100, scale: 0.9 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="relative w-80 rounded-xl border border-cyan-500/30 bg-gray-900/95 backdrop-blur-xl shadow-2xl"
+              className="relative w-[92vw] max-w-sm rounded-xl border border-cyan-500/30 bg-gray-900/95 backdrop-blur-xl shadow-2xl"
             >
               {/* Sharp angled header */}
               <div className="relative bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3 rounded-t-xl border-b border-cyan-500/20">

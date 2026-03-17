@@ -6,23 +6,23 @@ import InputPanel from "./InputPanel";
 import OutputPanel from "./OutputPanel";
 import TerminalPanel from "./TerminalPanel";
 import FileExplorer from "./FileExplorer";
-import { useCompilerStore } from "../store/useCompilerStore";
+import ProblemStatementPanel from "./ProblemStatementPanel";
 
 function TabsArea() {
   const [tab, setTab] = React.useState('input');
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-2">
+      <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button
-            className={`px-3 py-1 rounded-md text-sm font-medium ${tab === 'input' ? 'bg-cyan-500 text-black' : 'text-white/70 bg-white/3'}`}
+            className={`ui-tab ${tab === 'input' ? 'ui-tab-active' : ''}`}
             onClick={() => setTab('input')}
           >
             Input
           </button>
           <button
-            className={`px-3 py-1 rounded-md text-sm font-medium ${tab === 'terminal' ? 'bg-cyan-500 text-black' : 'text-white/70 bg-white/3'}`}
+            className={`ui-tab ${tab === 'terminal' ? 'ui-tab-active' : ''}`}
             onClick={() => setTab('terminal')}
           >
             Terminal
@@ -41,7 +41,45 @@ function TabsArea() {
   );
 }
 
+function MobileTabsArea() {
+  const [tab, setTab] = React.useState("editor");
+
+  return (
+    <div className="h-full min-h-0 flex flex-col">
+      <div className="mb-2 flex items-center gap-2 overflow-x-auto rounded-lg border border-white/10 bg-black/35 p-1">
+        {[
+          { id: "problem", label: "Problem" },
+          { id: "editor", label: "Editor" },
+          { id: "output", label: "Output" },
+          { id: "input", label: "Input" },
+        ].map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`ui-tab shrink-0 ${tab === item.id
+                ? "ui-tab-active"
+                : ""
+              }`}
+            onClick={() => setTab(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="ui-surface min-h-0 flex-1 overflow-hidden p-2 sm:p-3">
+        {tab === "problem" && <ProblemStatementPanel />}
+        {tab === "editor" && <EditorPanel compact />}
+        {tab === "output" && <OutputPanel />}
+        {tab === "input" && <TabsArea />}
+      </div>
+    </div>
+  );
+}
+
 export default function Shell() {
+  const [isExplorerOpen, setIsExplorerOpen] = React.useState(false);
+
   // Handle global keyboard shortcuts
   React.useEffect(() => {
     const handleKeyDown = (event) => {
@@ -69,45 +107,104 @@ export default function Shell() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
-  
+
   return (
     <div className="relative z-0 min-h-screen flex flex-col overflow-x-hidden">
-      <TopBar />
-      <div className="flex-1 overflow-x-hidden">
-        <div className="h-[calc(100vh-72px)] overflow-x-hidden w-full">
-          <PanelGroup direction="horizontal">
-            <Panel defaultSize={20} minSize={15} maxSize={40}>
-              <div className="bg-gray-900/50 backdrop-blur-xl border border-white/10 h-full w-full p-0 overflow-hidden">
-                <FileExplorer />
-              </div>
-            </Panel>
-            <PanelResizeHandle className="w-2 mx-1 bg-white/5 rounded hover:bg-white/10 transition-colors" />
-            <Panel defaultSize={55} minSize={35}>
-              <div className="bg-black/50 backdrop-blur-xl border border-white/10 h-full w-full p-2 overflow-hidden">
-                <EditorPanel />
-              </div>
-            </Panel>
-            <PanelResizeHandle className="w-2 mx-1 bg-white/5 rounded hover:bg-white/10 transition-colors" />
-            {/* The three horizontal panels' default sizes should sum ~100 (20 + 55 + 25) */}
-            <Panel defaultSize={25} minSize={25}>
-              <PanelGroup direction="vertical">
-                <Panel defaultSize={45} minSize={20}>
-                  <div className="bg-black/50 backdrop-blur-xl border border-white/10 h-full w-full p-2 overflow-hidden flex flex-col">
-                    {/* Tabs: Input / Terminal share the same space */}
+      <TopBar onToggleExplorer={() => setIsExplorerOpen((s) => !s)} />
+
+      <div className="flex-1 overflow-x-hidden px-2 pb-2 sm:px-3 sm:pb-3">
+        <div className="h-[calc(100vh-84px)] overflow-x-hidden">
+          {/* Desktop: fixed 3-pane coding layout */}
+          <div className="hidden h-full lg:block">
+            <PanelGroup direction="horizontal" className="h-full min-h-0">
+              <Panel defaultSize={20} minSize={15} maxSize={40}>
+                <div className="ui-surface h-full min-h-0 w-full overflow-hidden bg-gray-900/50">
+                  <FileExplorer />
+                </div>
+              </Panel>
+              <PanelResizeHandle className="mx-1 w-2 rounded bg-white/5 transition-colors hover:bg-white/10" />
+
+              <Panel defaultSize={55} minSize={35}>
+                <div className="ui-surface h-full min-h-0 w-full overflow-hidden bg-black/50 p-2 sm:p-3">
+                  <EditorPanel />
+                </div>
+              </Panel>
+
+              <PanelResizeHandle className="mx-1 w-2 rounded bg-white/5 transition-colors hover:bg-white/10" />
+
+              <Panel defaultSize={25} minSize={22}>
+                <PanelGroup direction="vertical" className="h-full min-h-0">
+                  <Panel defaultSize={45} minSize={20}>
+                    <div className="ui-surface flex h-full min-h-0 w-full flex-col overflow-hidden bg-black/50 p-2 sm:p-3">
+                      <TabsArea />
+                    </div>
+                  </Panel>
+                  <PanelResizeHandle className="my-1 h-2 rounded bg-white/5 transition-colors hover:bg-white/10" />
+                  <Panel defaultSize={55} minSize={30}>
+                    <div className="ui-surface h-full min-h-0 w-full overflow-hidden bg-black/50 p-2 sm:p-3">
+                      <OutputPanel />
+                    </div>
+                  </Panel>
+                </PanelGroup>
+              </Panel>
+            </PanelGroup>
+          </div>
+
+          {/* Tablet: collapsible explorer + editor/output split */}
+          <div className="hidden h-full min-h-0 md:grid md:grid-cols-2 md:gap-3 lg:hidden">
+            <div className="ui-surface min-h-0 overflow-hidden bg-black/50 p-2 sm:p-3">
+              <EditorPanel compact />
+            </div>
+            <div className="ui-surface min-h-0 overflow-hidden bg-black/50 p-2 sm:p-3">
+              <PanelGroup direction="vertical" className="h-full min-h-0">
+                <Panel defaultSize={45} minSize={25}>
+                  <div className="h-full min-h-0 overflow-hidden">
                     <TabsArea />
                   </div>
                 </Panel>
-                <PanelResizeHandle className="h-2 my-1 bg-white/5 rounded hover:bg-white/10 transition-colors" />
+                <PanelResizeHandle className="my-1 h-2 rounded bg-white/5 transition-colors hover:bg-white/10" />
                 <Panel defaultSize={55} minSize={30}>
-                  <div className="bg-black/50 backdrop-blur-xl border border-white/10 h-full w-full p-3 overflow-hidden">
+                  <div className="h-full min-h-0 overflow-hidden">
                     <OutputPanel />
                   </div>
                 </Panel>
               </PanelGroup>
-            </Panel>
-          </PanelGroup>
+            </div>
+          </div>
+
+          {/* Mobile: industry-standard tabs */}
+          <div className="h-full md:hidden">
+            <MobileTabsArea />
+          </div>
         </div>
       </div>
+
+      {/* Collapsible Explorer Drawer for mobile/tablet */}
+      {isExplorerOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <button
+            type="button"
+            aria-label="Close explorer"
+            className="absolute inset-0 bg-black/55"
+            onClick={() => setIsExplorerOpen(false)}
+          />
+          <div className="absolute left-0 top-0 h-full w-[88vw] max-w-sm overflow-hidden border-r border-white/10 bg-gray-950/95 shadow-2xl backdrop-blur-xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-3 py-3">
+              <div className="text-sm font-semibold text-white/85">Explorer</div>
+              <button
+                type="button"
+                className="rounded-md border border-white/15 px-2 py-1 text-xs text-white/80"
+                onClick={() => setIsExplorerOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="h-[calc(100%-53px)] min-h-0">
+              <FileExplorer />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

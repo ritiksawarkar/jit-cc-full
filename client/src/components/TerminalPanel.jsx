@@ -264,7 +264,7 @@ export default function TerminalPanel() {
 
   return (
     <div className="h-full flex flex-col">
-  <div className="flex-1 overflow-auto rounded-xl p-3 font-mono text-sm bg-black/50 border border-white/10" ref={outRef} style={{ overflowX: 'auto' }}>
+  <div className="ui-mono-panel flex-1 overflow-auto p-3 text-sm" ref={outRef} style={{ overflowX: 'auto' }}>
         {running && log.length === 0 ? (
           <div>
             <Shimmer lines={6} />
@@ -304,7 +304,7 @@ export default function TerminalPanel() {
               </div>
             ))}
 
-            <div className="mt-2">
+            <div className="mt-2 border-t border-white/10 pt-2">
               <div className="w-full flex items-center font-mono text-sm text-white/60 min-w-0" style={{ whiteSpace: 'nowrap' }}>
                 <span
                   role="button"
