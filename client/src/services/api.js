@@ -37,6 +37,7 @@ export async function executeCode({ language_id, source_code, stdin }) {
 export async function submitCode({
   userId,
   problemId,
+  eventId,
   language,
   language_id,
   sourceCode,
@@ -45,6 +46,7 @@ export async function submitCode({
   const res = await API.post("/api/submissions", {
     userId,
     problemId,
+    eventId,
     language,
     language_id,
     sourceCode,
@@ -65,6 +67,385 @@ export async function fetchSubmissionsByProblem(problemId, userId) {
   const res = await API.get(
     `/api/submissions/problem/${encodeURIComponent(problemId)}${params}`,
   );
+  return res.data;
+}
+
+export async function fetchSubmissionById(submissionId) {
+  const res = await API.get(
+    `/api/submissions/${encodeURIComponent(submissionId)}`,
+  );
+  return res.data;
+}
+
+export async function reevaluateSubmission(submissionId) {
+  const res = await API.post(
+    `/api/submissions/${encodeURIComponent(submissionId)}/reevaluate`,
+  );
+  return res.data;
+}
+
+export async function fetchProblems(
+  includeInactive = false,
+  page = 1,
+  limit = 20,
+) {
+  const params = new URLSearchParams();
+  if (includeInactive) params.append("includeInactive", "true");
+  params.append("page", String(page));
+  params.append("limit", String(limit));
+  const query = params.toString();
+  const res = await API.get(`/api/problems?${query}`);
+  return res.data;
+}
+
+export async function fetchProblemById(problemId) {
+  const res = await API.get(`/api/problems/${encodeURIComponent(problemId)}`);
+  return res.data;
+}
+
+export async function getMyProblemSelection(eventId) {
+  const res = await API.get(
+    `/api/events/${encodeURIComponent(eventId)}/problems/my-selection`,
+  );
+  return res.data;
+}
+
+export async function lockMyProblemSelection(eventId, problemId) {
+  const res = await API.post(
+    `/api/events/${encodeURIComponent(eventId)}/problems/my-selection`,
+    { problemId },
+  );
+  return res.data;
+}
+
+export async function unlockMyProblemSelection(eventId) {
+  const res = await API.delete(
+    `/api/events/${encodeURIComponent(eventId)}/problems/my-selection`,
+  );
+  return res.data;
+}
+
+export async function joinEventWithCode(eventCode) {
+  const res = await API.post("/api/events/join", { eventCode });
+  return res.data;
+}
+
+export async function fetchMyEvents() {
+  const res = await API.get("/api/events/my");
+  return res.data;
+}
+
+export async function createProblem(payload) {
+  const res = await API.post("/api/admin/problems", payload);
+  return res.data;
+}
+
+export async function updateProblem(problemId, payload) {
+  const res = await API.put(
+    `/api/admin/problems/${encodeURIComponent(problemId)}`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function archiveProblem(problemId) {
+  const res = await API.delete(
+    `/api/admin/problems/${encodeURIComponent(problemId)}`,
+  );
+  return res.data;
+}
+
+export async function bulkImportProblems(problems, conflictMode = "skip") {
+  const res = await API.post("/api/admin/problems/bulk/import", {
+    problems,
+    conflictMode,
+  });
+  return res.data;
+}
+
+export async function fetchAdminOverview() {
+  const res = await API.get("/api/admin/overview");
+  return res.data;
+}
+
+export async function fetchAdminEvents(scope = "all") {
+  const res = await API.get(
+    `/api/admin/events?scope=${encodeURIComponent(scope)}`,
+  );
+  return res.data;
+}
+
+export async function createAdminEvent(payload) {
+  const res = await API.post("/api/admin/events", payload);
+  return res.data;
+}
+
+export async function updateAdminEvent(eventId, payload) {
+  const res = await API.put(
+    `/api/admin/events/${encodeURIComponent(eventId)}`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function deleteAdminEvent(eventId) {
+  const res = await API.delete(
+    `/api/admin/events/${encodeURIComponent(eventId)}`,
+  );
+  return res.data;
+}
+
+export async function fetchEventAttendanceSummary() {
+  const res = await API.get("/api/admin/events/attendance/summary");
+  return res.data;
+}
+
+export async function upsertEventAttendance(eventId, payload) {
+  const res = await API.put(
+    `/api/admin/events/${encodeURIComponent(eventId)}/attendance`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function bulkUpsertEventAttendance(rows) {
+  const res = await API.post("/api/admin/events/attendance/bulk", { rows });
+  return res.data;
+}
+
+export async function fetchAdminStudents() {
+  const res = await API.get("/api/admin/students");
+  return res.data;
+}
+
+export async function setStudentFreeze(userId, frozen, reason = "") {
+  const res = await API.put(
+    `/api/admin/students/${encodeURIComponent(userId)}/freeze`,
+    { frozen, reason },
+  );
+  return res.data;
+}
+
+export async function forceStudentPasswordReset(userId) {
+  const res = await API.post(
+    `/api/admin/students/${encodeURIComponent(userId)}/force-password-reset`,
+  );
+  return res.data;
+}
+
+export async function fetchRoleChangeRequests(status = "pending") {
+  const res = await API.get(
+    `/api/admin/role-requests?status=${encodeURIComponent(status)}`,
+  );
+  return res.data;
+}
+
+export async function reviewRoleChangeRequest(requestId, payload) {
+  const res = await API.post(
+    `/api/admin/role-requests/${encodeURIComponent(requestId)}/review`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function fetchAdminAuditLogs(limit = 50) {
+  const res = await API.get(
+    `/api/admin/audit-logs?limit=${encodeURIComponent(limit)}`,
+  );
+  return res.data;
+}
+
+export async function fetchAdminEventResults(eventId) {
+  const res = await API.get(
+    `/api/admin/events/${encodeURIComponent(eventId)}/results`,
+  );
+  return res.data;
+}
+
+export async function computeAdminEventResults(eventId) {
+  const res = await API.post(
+    `/api/admin/events/${encodeURIComponent(eventId)}/results/compute`,
+  );
+  return res.data;
+}
+
+export async function finalizeAdminEventResults(eventId) {
+  const res = await API.post(
+    `/api/admin/events/${encodeURIComponent(eventId)}/results/finalize`,
+  );
+  return res.data;
+}
+
+export async function fetchAdminEventProblemSelections(
+  eventId,
+  page = 1,
+  limit = 20,
+) {
+  const res = await API.get(
+    `/api/admin/events/${encodeURIComponent(eventId)}/problem-selections?page=${encodeURIComponent(page)}&limit=${encodeURIComponent(limit)}`,
+  );
+  return res.data;
+}
+
+export async function adminUnlockEventProblemSelection(
+  eventId,
+  userId,
+  reason,
+) {
+  const res = await API.put(
+    `/api/admin/events/${encodeURIComponent(eventId)}/problem-selections/${encodeURIComponent(userId)}/unlock`,
+    { reason },
+  );
+  return res.data;
+}
+
+export async function fetchPublicEventLeaderboard(eventId) {
+  const res = await API.get(
+    `/api/events/${encodeURIComponent(eventId)}/leaderboard`,
+  );
+  return res.data;
+}
+
+export async function createEventPrize(eventId, payload) {
+  const res = await API.post(
+    `/api/admin/events/${encodeURIComponent(eventId)}/prizes`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function fetchEventPrizes(eventId) {
+  const res = await API.get(
+    `/api/admin/events/${encodeURIComponent(eventId)}/prizes`,
+  );
+  return res.data;
+}
+
+export async function updateEventPrize(prizeId, payload) {
+  const res = await API.put(
+    `/api/admin/prizes/${encodeURIComponent(prizeId)}`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function archiveEventPrize(prizeId) {
+  const res = await API.delete(
+    `/api/admin/prizes/${encodeURIComponent(prizeId)}`,
+  );
+  return res.data;
+}
+
+export async function allocateEventPrizes(eventId) {
+  const res = await API.post(
+    `/api/admin/events/${encodeURIComponent(eventId)}/prizes/allocate`,
+  );
+  return res.data;
+}
+
+export async function fetchEventPrizeAllocations(eventId) {
+  const res = await API.get(
+    `/api/admin/events/${encodeURIComponent(eventId)}/prizes/allocations`,
+  );
+  return res.data;
+}
+
+export async function deliverPrizeAllocation(allocationId, payload = {}) {
+  const res = await API.post(
+    `/api/admin/prize-allocations/${encodeURIComponent(allocationId)}/deliver`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function fetchMyPrizes() {
+  const res = await API.get("/api/rewards/my-prizes");
+  return res.data;
+}
+
+export async function claimPrizeAllocation(allocationId, claimDetails) {
+  const res = await API.post(
+    `/api/rewards/allocations/${encodeURIComponent(allocationId)}/claim`,
+    { claimDetails },
+  );
+  return res.data;
+}
+
+export async function createCertificateTemplate(eventId, payload) {
+  const res = await API.post(
+    `/api/certificates/admin/events/${encodeURIComponent(eventId)}/templates`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function fetchCertificateTemplates(eventId) {
+  const res = await API.get(
+    `/api/certificates/admin/events/${encodeURIComponent(eventId)}/templates`,
+  );
+  return res.data;
+}
+
+export async function updateCertificateTemplate(templateId, payload) {
+  const res = await API.put(
+    `/api/certificates/admin/templates/${encodeURIComponent(templateId)}`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function issueEventCertificates(eventId, payload = {}) {
+  const res = await API.post(
+    `/api/certificates/admin/events/${encodeURIComponent(eventId)}/issue`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function fetchEventCertificates(eventId) {
+  const res = await API.get(
+    `/api/certificates/admin/events/${encodeURIComponent(eventId)}`,
+  );
+  return res.data;
+}
+
+export async function fetchMyCertificates() {
+  const res = await API.get("/api/certificates/my");
+  return res.data;
+}
+
+export async function verifyCertificate(verificationCode) {
+  const res = await API.get(
+    `/api/certificates/verify/${encodeURIComponent(verificationCode)}`,
+  );
+  return res.data;
+}
+
+export async function fetchPublicCertificateAssets() {
+  const res = await API.get("/api/certificates/assets");
+  return res.data;
+}
+
+export async function fetchAdminCertificateAssets() {
+  const res = await API.get("/api/admin/certificate-assets");
+  return res.data;
+}
+
+export async function uploadAdminCertificateAsset(key, payload) {
+  const res = await API.put(
+    `/api/admin/certificate-assets/${encodeURIComponent(key)}`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function resetAdminCertificateAssets() {
+  const res = await API.post("/api/admin/certificate-assets/reset");
+  return res.data;
+}
+
+export async function requestRoleChange(payload) {
+  const res = await API.post("/api/auth/role-requests", payload);
   return res.data;
 }
 
@@ -121,8 +502,27 @@ export async function loginWithEmail({ email, password }) {
   return res.data;
 }
 
-export async function signupWithEmail({ name, email, password }) {
-  const res = await API.post("/api/auth/signup", { name, email, password });
+export async function signupWithEmail({ name, email, password, role }) {
+  const res = await API.post("/api/auth/signup", {
+    name,
+    email,
+    password,
+    role,
+  });
+  return res.data;
+}
+
+export async function requestPasswordReset(email) {
+  const res = await API.post("/api/auth/forgot-password", { email });
+  return res.data;
+}
+
+export async function resetPasswordWithToken({ token, email, newPassword }) {
+  const res = await API.post("/api/auth/reset-password", {
+    token,
+    email,
+    newPassword,
+  });
   return res.data;
 }
 

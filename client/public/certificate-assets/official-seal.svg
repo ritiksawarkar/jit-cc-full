@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="420" viewBox="0 0 420 420" role="img" aria-label="Official Seal">
+  <defs>
+    <radialGradient id="s" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#a7f3d0"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </radialGradient>
+  </defs>
+  <circle cx="210" cy="210" r="200" fill="none" stroke="#0f766e" stroke-width="10"/>
+  <circle cx="210" cy="210" r="172" fill="none" stroke="#14b8a6" stroke-width="6"/>
+  <circle cx="210" cy="210" r="132" fill="url(#s)" opacity="0.22"/>
+  <polygon points="210,110 234,178 306,178 248,220 270,290 210,246 150,290 172,220 114,178 186,178" fill="#0f766e" opacity="0.85"/>
+  <text x="210" y="74" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#0f766e">OFFICIAL</text>
+  <text x="210" y="360" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#0f766e">CERTIFIED</text>
+  <text x="210" y="212" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#0f172a">JIT</text>
+</svg>

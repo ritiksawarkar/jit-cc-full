@@ -28,6 +28,43 @@ const userSchema = new mongoose.Schema(
       enum: ["student", "admin"],
       default: "student",
     },
+    isFrozen: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    frozenReason: {
+      type: String,
+      default: "",
+      maxlength: 300,
+    },
+    frozenAt: {
+      type: Date,
+      default: null,
+    },
+    mustResetPassword: {
+      type: Boolean,
+      default: false,
+    },
+    passwordResetForcedAt: {
+      type: Date,
+      default: null,
+    },
+    passwordResetTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+      index: true,
+    },
+    passwordResetExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+    passwordResetRequestedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true },
 );

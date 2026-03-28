@@ -9,21 +9,21 @@ import FileExplorer from "./FileExplorer";
 import ProblemStatementPanel from "./ProblemStatementPanel";
 
 function TabsArea() {
-  const [tab, setTab] = React.useState('input');
+  const [tab, setTab] = React.useState("input");
 
   return (
     <div className="h-full flex flex-col">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button
-            className={`ui-tab ${tab === 'input' ? 'ui-tab-active' : ''}`}
-            onClick={() => setTab('input')}
+            className={`ui-tab ${tab === "input" ? "ui-tab-active" : ""}`}
+            onClick={() => setTab("input")}
           >
             Input
           </button>
           <button
-            className={`ui-tab ${tab === 'terminal' ? 'ui-tab-active' : ''}`}
-            onClick={() => setTab('terminal')}
+            className={`ui-tab ${tab === "terminal" ? "ui-tab-active" : ""}`}
+            onClick={() => setTab("terminal")}
           >
             Terminal
           </button>
@@ -31,7 +31,7 @@ function TabsArea() {
       </div>
 
       <div className="flex-1 overflow-auto">
-        {tab === 'input' ? (
+        {tab === "input" ? (
           <div className="h-full"><InputPanel /></div>
         ) : (
           <div className="h-full"><TerminalPanel /></div>
@@ -57,8 +57,8 @@ function MobileTabsArea() {
             key={item.id}
             type="button"
             className={`ui-tab shrink-0 ${tab === item.id
-                ? "ui-tab-active"
-                : ""
+              ? "ui-tab-active"
+              : ""
               }`}
             onClick={() => setTab(item.id)}
           >

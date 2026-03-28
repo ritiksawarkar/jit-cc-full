@@ -12,14 +12,45 @@ export function createJudge0Client({ host, apiKey }) {
   const b64 = (s) => Buffer.from(s || "", "utf8").toString("base64");
   const ub64 = (s) => (s ? Buffer.from(s, "base64").toString("utf8") : "");
 
-  async function execute({ language_id, source_code, stdin = "" }) {
+  async function execute({
+    language_id,
+    source_code,
+    stdin = "",
+    cpu_time_limit,
+    cpu_extra_time,
+    wall_time_limit,
+    memory_limit,
+    expected_output,
+  }) {
+    const payload = {
+      language_id,
+      source_code: b64(source_code),
+      stdin: b64(stdin),
+    };
+
+    if (cpu_time_limit !== undefined && cpu_time_limit !== null) {
+      payload.cpu_time_limit = Number(cpu_time_limit);
+    }
+    if (cpu_extra_time !== undefined && cpu_extra_time !== null) {
+      payload.cpu_extra_time = Number(cpu_extra_time);
+    }
+    if (wall_time_limit !== undefined && wall_time_limit !== null) {
+      payload.wall_time_limit = Number(wall_time_limit);
+    }
+    if (memory_limit !== undefined && memory_limit !== null) {
+      payload.memory_limit = Number(memory_limit);
+    }
+    if (expected_output !== undefined && expected_output !== null) {
+      payload.expected_output = b64(String(expected_output));
+    }
+
     // Create submission (no wait)
     const submit = await axios({
       method: "POST",
       url: `${baseURL}/submissions`,
       headers,
       params: { base64_encoded: true, wait: false, fields: "*" },
-      data: { language_id, source_code: b64(source_code), stdin: b64(stdin) },
+      data: payload,
     });
 
     const token = submit?.data?.token;

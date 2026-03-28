@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
-import { loginWithEmail } from "../services/api";
+import { loginWithEmail, requestPasswordReset } from "../services/api";
 import { useCompilerStore } from "../store/useCompilerStore";
 
 export default function AdminLoginPage() {
@@ -13,6 +13,11 @@ export default function AdminLoginPage() {
     const [form, setForm] = useState({ email: "", password: "" });
     const [error, setError] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [forgotEmail, setForgotEmail] = useState("");
+    const [forgotError, setForgotError] = useState("");
+    const [forgotNotice, setForgotNotice] = useState("");
+    const [forgotResetUrl, setForgotResetUrl] = useState("");
+    const [isRequestingForgot, setIsRequestingForgot] = useState(false);
 
     const targetPath = useMemo(() => {
         const fromPath = location.state?.from?.pathname;
@@ -61,6 +66,44 @@ export default function AdminLoginPage() {
             setError(message);
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleForgotSubmit = async (event) => {
+        event.preventDefault();
+        const email = String(forgotEmail || form.email || "").trim().toLowerCase();
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailPattern.test(email)) {
+            setForgotError("Enter a valid email address.");
+            return;
+        }
+
+        try {
+            setIsRequestingForgot(true);
+            setForgotError("");
+            setForgotNotice("");
+            setForgotResetUrl("");
+
+            const response = await requestPasswordReset(email);
+            const emailed = Boolean(response?.delivery?.emailed);
+            setForgotNotice(
+                emailed
+                    ? "Password reset email sent. Please check your inbox."
+                    : response?.message ||
+                    "If this account exists, a reset link has been generated.",
+            );
+            if (response?.reset?.resetUrl) {
+                setForgotResetUrl(String(response.reset.resetUrl));
+            }
+        } catch (forgotErr) {
+            const message =
+                forgotErr?.response?.data?.error ||
+                forgotErr?.message ||
+                "Unable to start password reset.";
+            setForgotError(message);
+        } finally {
+            setIsRequestingForgot(false);
         }
     };
 
@@ -191,6 +234,54 @@ export default function AdminLoginPage() {
                             >
                                 {isSubmitting ? "Signing in..." : "Sign in as admin"}
                             </button>
+
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                <p className="text-sm font-semibold text-white">Forgot password?</p>
+                                <p className="mt-1 text-xs text-white/65">
+                                    Generate a secure reset link for admin or student accounts.
+                                </p>
+
+                                <div className="mt-3 space-y-3">
+                                    <input
+                                        type="email"
+                                        value={forgotEmail}
+                                        onChange={(event) => setForgotEmail(event.target.value)}
+                                        autoComplete="email"
+                                        className="w-full rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none transition focus:border-emerald-300/45"
+                                        placeholder="admin@example.com"
+                                    />
+
+                                    {forgotError && (
+                                        <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-100">
+                                            {forgotError}
+                                        </div>
+                                    )}
+
+                                    {forgotNotice && (
+                                        <div className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
+                                            {forgotNotice}
+                                        </div>
+                                    )}
+
+                                    {forgotResetUrl && (
+                                        <a
+                                            href={forgotResetUrl}
+                                            className="block break-all rounded-xl border border-emerald-300/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100 underline underline-offset-2"
+                                        >
+                                            {forgotResetUrl}
+                                        </a>
+                                    )}
+
+                                    <button
+                                        type="button"
+                                        onClick={handleForgotSubmit}
+                                        disabled={isRequestingForgot}
+                                        className="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-emerald-300/35 bg-emerald-400/15 px-3 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-70"
+                                    >
+                                        {isRequestingForgot ? "Generating reset link..." : "Generate reset link"}
+                                    </button>
+                                </div>
+                            </div>
                         </form>
                     )}
                 </section>

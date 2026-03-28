@@ -18,6 +18,7 @@ function normalize(v) {
 export default function OutputPanel() {
   const { isRunning, result, outputPanelView, explanation, explainLoading, setOutputPanelView, explainCurrentError } = useCompilerStore();
   const [typed, setTyped] = useState("");
+  const evaluation = result?.evaluation || null;
 
   useEffect(() => {
     let cancelled = false;
@@ -98,16 +99,30 @@ export default function OutputPanel() {
                 <div className="mt-3 text-xs text-white/50">Compiling ....</div>
               </motion.div>
             ) : (
-              <motion.pre
+              <motion.div
                 key="output"
-                className="whitespace-pre-wrap typing-caret text-white"
+                className="space-y-3"
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.2 }}
               >
-                {typed}
-              </motion.pre>
+                {evaluation?.score && (
+                  <div className="rounded-md border border-cyan-400/20 bg-cyan-500/10 p-3 text-xs text-cyan-100 sm:text-sm">
+                    <div className="font-semibold">Evaluation Summary</div>
+                    <div className="mt-1">
+                      Status: {evaluation.status || result?.status?.description || "Submitted"}
+                    </div>
+                    <div>
+                      Score: {Number(evaluation.score.earned || 0)} / {Number(evaluation.score.total || 0)} ({Number(evaluation.score.percentage || 0)}%)
+                    </div>
+                    <div>
+                      Passed Cases: {Number(evaluation.score.passedCount || 0)} / {Number(evaluation.score.totalCount || 0)}
+                    </div>
+                  </div>
+                )}
+                <pre className="whitespace-pre-wrap typing-caret text-white">{typed}</pre>
+              </motion.div>
             )}
           </AnimatePresence>
         ) : (

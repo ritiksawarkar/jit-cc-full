@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="160" viewBox="0 0 520 160" role="img" aria-label="Signature Scan">
+  <rect x="0" y="0" width="520" height="160" fill="transparent"/>
+  <path d="M20 108 C58 68, 80 138, 118 92 C132 74, 146 56, 166 108 C180 145, 202 68, 224 94 C242 114, 266 130, 294 84 C318 45, 338 135, 364 102 C382 78, 398 48, 424 74 C448 98, 458 108, 496 70"
+        fill="none" stroke="#1e293b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M174 122 C212 142, 280 142, 348 120" fill="none" stroke="#0f172a" stroke-width="2.5" opacity="0.65"/>
+</svg>

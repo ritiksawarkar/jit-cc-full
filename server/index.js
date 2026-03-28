@@ -5,7 +5,13 @@ import morgan from "morgan";
 import jwt from "jsonwebtoken";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 import submissionRoutes from "./routes/submissionRoutes.js";
+import problemRoutes from "./routes/problemRoutes.js";
+import eventPublicRoutes from "./routes/eventPublicRoutes.js";
+import eventSelectionRoutes from "./routes/eventSelectionRoutes.js";
+import rewardRoutes from "./routes/rewardRoutes.js";
+import certificateRoutes from "./routes/certificateRoutes.js";
 import fs, { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,7 +29,7 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: "2mb" })); // Increased limit for AI prompts
+app.use(express.json({ limit: "8mb" })); // Supports base64 image payloads; controller-level guards enforce actual asset size limits
 app.use(morgan("dev"));
 
 // Normalize body parser failures to JSON responses (avoid HTML stack traces)
@@ -81,11 +87,97 @@ try {
 let SERVER_PROJECT_ROOT = defaultRoot;
 const leaderboardPath = path.join(__dirname, "data", "leaderboard.json");
 
+function getLeaderboardKey(entry = {}) {
+  const userId = String(entry.userId || "").trim();
+  if (userId) return `user:${userId}`;
+
+  // Fallback for legacy rows where userId may be missing
+  const normalizedName = String(entry.name || "")
+    .trim()
+    .toLowerCase();
+  if (normalizedName) return `name:${normalizedName}`;
+
+  return `row:${String(entry.id || "")}`;
+}
+
+function dedupeLeaderboard(entries = []) {
+  const map = new Map();
+
+  for (const item of entries || []) {
+    const key = getLeaderboardKey(item);
+    const current = map.get(key);
+    if (!current) {
+      map.set(key, item);
+      continue;
+    }
+
+    const currentScore = Number(current.score || 0);
+    const nextScore = Number(item.score || 0);
+    if (nextScore > currentScore) {
+      map.set(key, {
+        ...current,
+        ...item,
+      });
+      continue;
+    }
+
+    if (nextScore === currentScore) {
+      const currentTime = new Date(
+        current.updatedAt || current.createdAt || 0,
+      ).getTime();
+      const nextTime = new Date(
+        item.updatedAt || item.createdAt || 0,
+      ).getTime();
+      if (nextTime > currentTime) {
+        map.set(key, {
+          ...current,
+          ...item,
+        });
+      }
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+function buildRankedLeaderboard(entries = []) {
+  const sorted = (entries || []).slice().sort((a, b) => {
+    if (Number(b.score || 0) !== Number(a.score || 0)) {
+      return Number(b.score || 0) - Number(a.score || 0);
+    }
+    const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return aTime - bTime;
+  });
+
+  let rank = 0;
+  let lastScore = null;
+  return sorted.map((entry, index) => {
+    const score = Number(entry.score || 0);
+    if (lastScore === null || score !== lastScore) {
+      rank = index + 1;
+      lastScore = score;
+    }
+    return {
+      ...entry,
+      rank,
+    };
+  });
+}
+
 // Load leaderboard (optional file)
 let LEADERBOARD = [];
 try {
   const raw = readFileSync(leaderboardPath, "utf-8");
-  LEADERBOARD = JSON.parse(raw);
+  const parsed = JSON.parse(raw);
+  LEADERBOARD = dedupeLeaderboard(Array.isArray(parsed) ? parsed : []);
+
+  // Keep persisted data clean so duplicates don't come back after restart.
+  fs.writeFileSync(
+    leaderboardPath,
+    JSON.stringify(LEADERBOARD, null, 2),
+    "utf-8",
+  );
 } catch (err) {
   // If file missing, start with empty leaderboard
   LEADERBOARD = [];
@@ -365,20 +457,63 @@ app.use("/api/auth", authRoutes);
 app.use("/api/submissions", submissionRoutes);
 
 // --------------------
+// Problem Routes (MongoDB-backed)
+// --------------------
+app.use("/api/problems", problemRoutes);
+
+// --------------------
+// Admin Routes (MongoDB-backed)
+// --------------------
+app.use("/api/admin", adminRoutes);
+
+// --------------------
+// Event Selection Routes (MongoDB-backed)
+// --------------------
+app.use("/api/events", eventSelectionRoutes);
+
+// --------------------
+// Event Public Routes (MongoDB-backed)
+// --------------------
+app.use("/api/events", eventPublicRoutes);
+
+// --------------------
+// Reward Routes (MongoDB-backed)
+// --------------------
+app.use("/api/rewards", rewardRoutes);
+
+// --------------------
+// Certificate Routes (MongoDB-backed)
+// --------------------
+app.use("/api/certificates", certificateRoutes);
+
+// --------------------
 // Leaderboard endpoints
 // --------------------
 app.get("/api/leaderboard", (req, res) => {
   try {
     const limit = Math.min(100, Number(req.query.limit) || 20);
-    // sort by score desc, then recent
-    const items = (LEADERBOARD || [])
-      .slice()
-      .sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        return new Date(b.createdAt) - new Date(a.createdAt);
-      })
-      .slice(0, limit);
-    res.json({ items });
+    LEADERBOARD = dedupeLeaderboard(LEADERBOARD || []);
+    const rankedItems = buildRankedLeaderboard(LEADERBOARD || []);
+    const items = rankedItems.slice(0, limit);
+
+    // Return compact stats to improve client-side rendering without extra calls.
+    const stats = {
+      totalPlayers: rankedItems.length,
+      topScore: rankedItems[0]?.score ?? 0,
+      averageScore:
+        rankedItems.length > 0
+          ? Math.round(
+              (rankedItems.reduce(
+                (sum, item) => sum + Number(item.score || 0),
+                0,
+              ) /
+                rankedItems.length) *
+                100,
+            ) / 100
+          : 0,
+    };
+
+    res.json({ items, stats });
   } catch (err) {
     console.error("Leaderboard read error:", err);
     res.status(500).json({ error: "Unable to read leaderboard" });
@@ -405,6 +540,9 @@ app.post("/api/leaderboard", async (req, res) => {
     if (!Number.isFinite(n) || isNaN(n)) {
       return res.status(400).json({ error: "Score must be a number" });
     }
+    if (n < 0) {
+      return res.status(400).json({ error: "Score must be zero or positive" });
+    }
 
     const userId = payload.sub;
     const user = {
@@ -412,15 +550,37 @@ app.post("/api/leaderboard", async (req, res) => {
       name: payload.name || "Unknown",
     };
 
-    const entry = {
-      id: `lb-${Date.now()}`,
-      userId: user.id,
-      name: user.name || user.email || "Anonymous",
-      score: n,
-      createdAt: new Date().toISOString(),
-    };
+    const now = new Date().toISOString();
+    const existingIndex = (LEADERBOARD || []).findIndex(
+      (item) =>
+        getLeaderboardKey(item) ===
+        getLeaderboardKey({ userId: user.id, name: user.name }),
+    );
 
-    LEADERBOARD.push(entry);
+    let entry;
+    if (existingIndex >= 0) {
+      const prev = LEADERBOARD[existingIndex];
+      const prevScore = Number(prev?.score || 0);
+      const bestScore = n > prevScore ? n : prevScore;
+      entry = {
+        ...prev,
+        userId: user.id,
+        name: user.name || prev?.name || "Anonymous",
+        score: bestScore,
+        updatedAt: now,
+      };
+      LEADERBOARD[existingIndex] = entry;
+    } else {
+      entry = {
+        id: `lb-${Date.now()}`,
+        userId: user.id,
+        name: user.name || "Anonymous",
+        score: n,
+        createdAt: now,
+        updatedAt: now,
+      };
+      LEADERBOARD.push(entry);
+    }
     try {
       await fs.promises.mkdir(path.join(__dirname, "data"), {
         recursive: true,
@@ -435,7 +595,11 @@ app.post("/api/leaderboard", async (req, res) => {
       // still return success but warn
     }
 
-    res.status(201).json({ entry });
+    LEADERBOARD = dedupeLeaderboard(LEADERBOARD || []);
+    const rankedItems = buildRankedLeaderboard(LEADERBOARD || []);
+    const rankedEntry =
+      rankedItems.find((item) => item.id === entry.id) || entry;
+    res.status(201).json({ entry: rankedEntry });
   } catch (err) {
     console.error("Leaderboard submit error:", err);
     res.status(500).json({ error: "Unable to submit score" });
