@@ -958,7 +958,7 @@ export default function EditorPanel({ compact = false } = {}) {
         </Panel>
         {!compact && (
           <>
-            <PanelResizeHandle className="h-2 my-2 rounded bg-white/5 transition-colors hover:bg-white/10" />
+            <PanelResizeHandle className="h-2 rounded bg-white/5 transition-colors hover:bg-white/10" />
             <Panel defaultSize={35} minSize={15} className="flex">
               <div className="min-h-0 flex-1">
                 <ProblemStatementPanel />

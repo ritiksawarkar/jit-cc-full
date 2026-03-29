@@ -99,15 +99,6 @@ function getRemainingSecondsFromSession(session, nowMs = Date.now()) {
   return Math.max(0, Math.floor((expiresAtMs - nowMs) / 1000));
 }
 
-function formatHms(totalSeconds) {
-  const sec = Math.max(0, Number(totalSeconds) || 0);
-  const hrs = Math.floor(sec / 3600);
-  const mins = Math.floor((sec % 3600) / 60);
-  const secs = sec % 60;
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
-}
-
 function fmtDateTime(value) {
   if (!value) return "-";
   try {
@@ -705,9 +696,93 @@ export default function RunButtons() {
   const [isDepsOpen, setIsDepsOpen] = React.useState(false);
   const [depsDetected, setDepsDetected] = React.useState(null);
   const [isInstallingDeps, setIsInstallingDeps] = React.useState(false);
+  const [depsInstallResult, setDepsInstallResult] = React.useState(null);
   const toast = useToast();
   const [serverSettings, setServerSettings] = useState({ projectRoot: '' });
   const [newRoot, setNewRoot] = useState('');
+
+  const buildDependencyScanSource = () => {
+    const active = (tabs || []).find((t) => t.id === activeTabId) || null;
+    const activeSource = String(active?.content ?? source ?? "").trim();
+    const tabSources = (tabs || [])
+      .map((t) => String(t?.content || "").trim())
+      .filter(Boolean)
+      .slice(0, 25);
+
+    return [activeSource, ...tabSources].filter(Boolean).join("\n\n");
+  };
+
+  const openDependencyModalAndDetect = async () => {
+    setIsDepsOpen(true);
+    setDepsDetected(null);
+    setDepsInstallResult(null);
+    try {
+      const data = await resolveDependencies({
+        language: "auto",
+        source: buildDependencyScanSource(),
+        scanProject: true,
+        dryRun: true,
+        action: "detect",
+      });
+      const detected =
+        data?.installResults?.detected || data?.detected || { node: [], python: [] };
+      setDepsDetected(detected);
+    } catch (err) {
+      setDepsDetected({
+        error: err?.response?.data?.error || err?.message || String(err),
+      });
+    }
+  };
+
+  const installDetectedDependencies = async () => {
+    if (!depsDetected || depsDetected.error) return;
+    const hasNode = Array.isArray(depsDetected.node) && depsDetected.node.length > 0;
+    const hasPython = Array.isArray(depsDetected.python) && depsDetected.python.length > 0;
+    if (!hasNode && !hasPython) {
+      toast.push({
+        type: "info",
+        title: "No packages to install",
+        message: "No external dependencies were detected.",
+      });
+      return;
+    }
+
+    setIsInstallingDeps(true);
+    setDepsInstallResult(null);
+    try {
+      const res = await resolveDependencies({
+        language: "auto",
+        source: buildDependencyScanSource(),
+        scanProject: true,
+        dryRun: false,
+        action: "install",
+      });
+      const installResults = res?.installResults || {};
+      setDepsInstallResult(installResults);
+      setDepsDetected(installResults?.detected || depsDetected);
+
+      const nodeCode = installResults?.node?.code;
+      const pyCode = installResults?.python?.code;
+      const nodeOk = nodeCode === null || nodeCode === undefined || Number(nodeCode) === 0;
+      const pyOk = pyCode === null || pyCode === undefined || Number(pyCode) === 0;
+      const status = nodeOk && pyOk ? "success" : "error";
+
+      toast.push({
+        type: status,
+        title: status === "success" ? "Install completed" : "Install completed with errors",
+        message:
+          status === "success"
+            ? "Detected dependencies were installed successfully."
+            : "Some dependency installs failed. Check install output in modal.",
+      });
+    } catch (err) {
+      const message = err?.response?.data?.error || err?.message || String(err);
+      toast.push({ type: "error", title: "Install failed", message });
+      setDepsInstallResult({ error: message });
+    } finally {
+      setIsInstallingDeps(false);
+    }
+  };
 
   const openLeaderboard = () => {
     setIsMenuOpen(false);
@@ -1116,6 +1191,12 @@ export default function RunButtons() {
   const myCertificationsMenuLabel = isStudentUser
     ? `My Certification (${menuQuickCounts.certificates})${quickCountSuffix}`
     : "My Certification";
+  const menuItemClass =
+    "group flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium tracking-wide text-white/80 transition-colors hover:bg-white/10 hover:text-cyan-200";
+  const menuItemDangerClass =
+    "group flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium tracking-wide text-white/80 transition-colors hover:bg-red-500/20 hover:text-red-300";
+  const menuIconClass =
+    "h-4 w-4 shrink-0 text-white/70 transition-colors group-hover:text-current";
 
   return (
     <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap sm:items-center sm:gap-3">
@@ -1154,17 +1235,6 @@ export default function RunButtons() {
         </span>
       </motion.button>
 
-      {eventSessionState.active && (
-        <div
-          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${eventSessionState.expired
-            ? "border-red-400/50 bg-red-500/10 text-red-200"
-            : "border-amber-400/50 bg-amber-500/10 text-amber-100"
-            }`}
-        >
-          {formatHms(eventSessionState.remainingSeconds)}
-        </div>
-      )}
-
       <motion.button
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.98 }}
@@ -1178,30 +1248,7 @@ export default function RunButtons() {
       <motion.button
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.98 }}
-        onClick={async () => {
-          setIsDepsOpen(true);
-          setDepsDetected(null);
-          try {
-            const active = (tabs || []).find((t) => t.id === activeTabId) || null;
-            const src = (active?.content ?? source) || "";
-            const data = await resolveDependencies({
-              language: "auto",
-              source: src,
-              scanProject: true,
-              dryRun: true,
-              action: "detect",
-            });
-            setDepsDetected(
-              data?.installResults?.detected ||
-              data?.detected ||
-              { node: [], python: [] }
-            );
-          } catch (err) {
-            setDepsDetected({
-              error: err?.response?.data?.error || err?.message || String(err),
-            });
-          }
-        }}
+        onClick={openDependencyModalAndDetect}
         className="hidden min-h-10 items-center justify-center rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-white transition-colors hover:border-white/40 hover:bg-white/10 sm:inline-flex"
       >
         <span className="text-sm font-medium leading-none">Deps</span>
@@ -1228,71 +1275,79 @@ export default function RunButtons() {
             </div>
             {currentUser &&
               String(currentUser?.role || "").toLowerCase() === "student" && (
-                <div className="mx-2 mb-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
-                  <div className="flex items-center justify-between">
-                    <span>Events:</span>
-                    <span className="font-semibold text-cyan-300">
-                      {menuQuickCounts.loading && !menuQuickCounts.hasLoaded
-                        ? "…"
-                        : menuQuickCounts.joinedEvents}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between">
-                    <span>Certificates:</span>
-                    <span className="font-semibold text-cyan-300">
-                      {menuQuickCounts.loading && !menuQuickCounts.hasLoaded
-                        ? "…"
-                        : menuQuickCounts.certificates}
-                    </span>
+                <div className="mx-2 mb-2 rounded-md border border-white/10 bg-white/[0.04] p-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-md border border-cyan-400/25 bg-cyan-500/10 px-2.5 py-2">
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-cyan-100/85">
+                        <CalendarDays size={13} className="shrink-0" />
+                        Events
+                      </div>
+                      <div className="mt-1 text-base font-semibold leading-none text-cyan-200">
+                        {menuQuickCounts.loading && !menuQuickCounts.hasLoaded
+                          ? "…"
+                          : menuQuickCounts.joinedEvents}
+                      </div>
+                    </div>
+                    <div className="rounded-md border border-amber-400/25 bg-amber-500/10 px-2.5 py-2">
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-100/85">
+                        <BadgeCheck size={13} className="shrink-0" />
+                        Certificates
+                      </div>
+                      <div className="mt-1 text-base font-semibold leading-none text-amber-200">
+                        {menuQuickCounts.loading && !menuQuickCounts.hasLoaded
+                          ? "…"
+                          : menuQuickCounts.certificates}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
             <button
               type="button"
               onClick={handleLoginClick}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
+              className={menuItemClass}
             >
-              <UserCircle2 size={15} className="shrink-0 opacity-80" />
+              <UserCircle2 className={menuIconClass} />
               <span className="flex-1">{currentUser ? "Account" : "Login"}</span>
             </button>
             <button
               type="button"
               onClick={handleSettingsClick}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
+              className={menuItemClass}
             >
-              <Settings size={15} className="shrink-0 opacity-80" />
+              <Settings className={menuIconClass} />
               <span className="flex-1">Settings</span>
             </button>
             <button
               type="button"
               onClick={openSubmissionHistory}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
+              className={menuItemClass}
             >
-              <History size={15} className="shrink-0 opacity-80" />
+              <History className={menuIconClass} />
               <span className="flex-1">Submissions</span>
             </button>
             <button
               type="button"
               onClick={openJoinEventModal}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
+              className={menuItemClass}
             >
-              <CalendarPlus size={15} className="shrink-0 opacity-80" />
+              <CalendarPlus className={menuIconClass} />
               <span className="flex-1">Join Event</span>
             </button>
             <button
               type="button"
               onClick={openMyEvents}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
+              className={menuItemClass}
             >
-              <CalendarDays size={15} className="shrink-0 opacity-80" />
+              <CalendarDays className={menuIconClass} />
               <span className="flex-1">{myEventsMenuLabel}</span>
             </button>
             <button
               type="button"
               onClick={openMyCertifications}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
+              className={menuItemClass}
             >
-              <BadgeCheck size={15} className="shrink-0 opacity-80" />
+              <BadgeCheck className={menuIconClass} />
               <span className="flex-1">{myCertificationsMenuLabel}</span>
             </button>
             {String(currentUser?.role || "").toLowerCase() === "admin" && (
@@ -1302,35 +1357,35 @@ export default function RunButtons() {
                   setIsMenuOpen(false);
                   navigate("/admin/dashboard");
                 }}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
+                className={menuItemClass}
               >
-                <Shield size={15} className="shrink-0 opacity-80" />
+                <Shield className={menuIconClass} />
                 <span className="flex-1">Admin Panel</span>
               </button>
             )}
             <button
               type="button"
               onClick={openLeaderboard}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
+              className={menuItemClass}
             >
-              <Trophy size={15} className="shrink-0 opacity-80" />
+              <Trophy className={menuIconClass} />
               <span className="flex-1">Leaderboard</span>
             </button>
             <button
               type="button"
               onClick={handleExportToZip}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
+              className={menuItemClass}
             >
-              <Download size={15} className="shrink-0 opacity-80" />
+              <Download className={menuIconClass} />
               <span className="flex-1">Export</span>
             </button>
             {currentUser && (
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-red-500/20 hover:text-red-300"
+                className={menuItemDangerClass}
               >
-                <LogOut size={15} className="shrink-0 opacity-80" />
+                <LogOut className={menuIconClass} />
                 <span className="flex-1">Logout</span>
               </button>
             )}
@@ -2266,6 +2321,30 @@ export default function RunButtons() {
                 )}
               </div>
 
+              {depsInstallResult && (
+                <div className="mt-3 rounded border border-white/10 bg-black/30 p-3 text-xs text-white/75">
+                  <div className="mb-2 font-semibold text-white/80">Install Output</div>
+                  {depsInstallResult.error ? (
+                    <div className="text-red-300">{depsInstallResult.error}</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {depsInstallResult.node ? (
+                        <div>
+                          <div className="text-cyan-200">Node exit code: {String(depsInstallResult.node.code ?? "-")}</div>
+                          {depsInstallResult.node.stderr ? <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap text-red-200">{String(depsInstallResult.node.stderr)}</pre> : null}
+                        </div>
+                      ) : null}
+                      {depsInstallResult.python ? (
+                        <div>
+                          <div className="text-cyan-200">Python exit code: {String(depsInstallResult.python.code ?? "-")}</div>
+                          {depsInstallResult.python.stderr ? <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap text-red-200">{String(depsInstallResult.python.stderr)}</pre> : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="mt-4 flex items-center justify-end gap-2">
                 <button
                   type="button"
@@ -2276,24 +2355,14 @@ export default function RunButtons() {
                 </button>
                 <button
                   type="button"
-                  disabled={isInstallingDeps || !depsDetected || depsDetected.error}
-                  onClick={async () => {
-                    if (!depsDetected) return;
-                    setIsInstallingDeps(true);
-                    try {
-                      const active = (tabs || []).find((t) => t.id === activeTabId) || null;
-                      const src = (active?.content ?? source) || '';
-                      const res = await resolveDependencies({ language: 'auto', source: src, scanProject: true, dryRun: false, action: 'install' });
-                      try { toast.push({ type: 'success', title: 'Install finished', message: 'Dependencies installed (see console)' }); } catch { }
-                      console.log('Deps install result', res);
-                      setIsDepsOpen(false);
-                    } catch (err) {
-                      try { toast.push({ type: 'error', title: 'Install failed', message: err?.response?.data?.error || err?.message || String(err) }); } catch { }
-                      console.error('Install error', err);
-                    } finally {
-                      setIsInstallingDeps(false);
-                    }
-                  }}
+                  disabled={
+                    isInstallingDeps ||
+                    !depsDetected ||
+                    !!depsDetected.error ||
+                    ((depsDetected?.node || []).length === 0 &&
+                      (depsDetected?.python || []).length === 0)
+                  }
+                  onClick={installDetectedDependencies}
                   className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isInstallingDeps ? 'Installing…' : 'Install Detected Deps'}

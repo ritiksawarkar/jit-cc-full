@@ -276,11 +276,11 @@ end.`,
   }, []);
 
   return (
-    <div className="sticky top-0 z-50 bg-gray-950 pl-1 pr-1 pt-1.5 sm:pl-2 sm:pr-1.5 sm:pt-2 md:pl-3 md:pr-2 md:pt-3 lg:pl-2 lg:pr-1.5 lg:pt-2">
-      <div className="rounded-xl border border-white/10 bg-gradient-to-r from-black/60 via-black/40 to-black/60 pl-2 pr-1.5 py-2 backdrop-blur-lg sm:pl-3 sm:pr-2 sm:py-2 md:pl-4 md:pr-3 md:py-3 lg:py-3 shadow-lg">
-        <div className="flex flex-wrap items-center justify-between gap-2 lg:flex-nowrap lg:justify-start">
+    <div className="sticky top-0 z-50 w-full max-w-full overflow-x-clip bg-gray-950 px-2 pt-2 sm:px-3 md:px-4">
+      <div className="w-full rounded-xl border border-white/10 bg-gradient-to-r from-black/60 via-black/40 to-black/60 px-2 py-2 shadow-lg backdrop-blur-lg sm:px-3 md:px-4 md:py-3">
+        <div className="flex w-full flex-wrap items-center gap-2 xl:flex-nowrap xl:gap-3">
           {/* Left section: Logo and branding */}
-          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5 lg:gap-3">
+          <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2.5 lg:gap-3">
             <button
               type="button"
               onClick={onToggleExplorer}
@@ -306,14 +306,14 @@ end.`,
           </div>
 
           {/* Right section: Search, Language, Run buttons */}
-          <div className="flex w-full flex-wrap items-center justify-end gap-1.5 sm:gap-2 lg:ml-2 lg:w-auto lg:flex-nowrap lg:gap-3">
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2 md:flex-nowrap xl:ml-auto xl:w-auto xl:flex-nowrap xl:gap-3">
             {/* Search box - hidden on small screens */}
-            <div className="relative hidden min-w-0 md:block lg:min-w-[280px]" ref={searchRef}>
-              <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 transition-colors focus-within:border-cyan-500/50 focus-within:bg-white/10">
+            <div className="relative hidden min-w-0 md:block md:flex-1 md:min-w-[180px] md:max-w-[340px] lg:max-w-[400px]" ref={searchRef}>
+              <div className="flex h-10 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 transition-colors focus-within:border-cyan-500/50 focus-within:bg-white/10">
                 <select
                   value={scope}
                   onChange={(e) => setScope(e.target.value)}
-                  className="bg-transparent text-xs font-semibold leading-none text-white/70 outline-none"
+                  className="h-full shrink-0 bg-transparent text-xs font-semibold leading-none text-white/70 outline-none"
                   aria-label="Search scope"
                 >
                   <option value="files" style={{ color: "#000" }}>
@@ -338,7 +338,7 @@ end.`,
                   placeholder={
                     scope === "files" ? "Search files..." : "Search code..."
                   }
-                  className="flex-1 bg-transparent text-sm leading-none text-white outline-none placeholder:text-white/50"
+                  className="h-full min-w-0 flex-1 bg-transparent text-sm leading-none text-white outline-none placeholder:text-white/50"
                 />
               </div>
               {isOpen && (
@@ -405,11 +405,11 @@ end.`,
             </div>
 
             {/* Language selector */}
-            <div className="relative w-48 sm:w-56 lg:w-72" ref={languageRef}>
+            <div className="relative w-full max-w-[220px] shrink-0 sm:max-w-[250px] md:w-[220px] lg:w-[240px] xl:w-[280px]" ref={languageRef}>
               <button
                 type="button"
                 onClick={() => setIsLanguageOpen((prev) => !prev)}
-                className="ui-control flex w-full items-center justify-between gap-2 bg-black/35 text-left hover:bg-black/50 transition-colors"
+                className="ui-control h-10 flex w-full items-center justify-between gap-2 bg-black/35 py-0 text-left hover:bg-black/50 transition-colors"
                 aria-haspopup="listbox"
                 aria-expanded={isLanguageOpen}
                 aria-label="Select language and version"

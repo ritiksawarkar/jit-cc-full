@@ -16,6 +16,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import fs, { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
 import { createJudge0Client } from "./judge0.js";
 import WebSocket, { WebSocketServer } from "ws";
 import { GoogleGenAI } from "@google/genai";
@@ -1712,7 +1713,6 @@ app.post("/api/resolve-dependencies", async (req, res) => {
     // Install Node packages with npm install --no-audit --no-fund --no-package-lock --prefer-offline
     const execCmd = (cmd, opts = {}) =>
       new Promise((resolve) => {
-        const { spawn } = require("child_process");
         const p = spawn(cmd, {
           shell: true,
           cwd: projectRoot,

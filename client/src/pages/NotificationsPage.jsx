@@ -11,8 +11,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Bell,
-    Filter,
-    Trash2,
     Archive,
     Check,
     AlertCircle,
@@ -25,15 +23,67 @@ import {
     Clock,
 } from "lucide-react";
 
-const NOTIFICATION_ICONS = {
-    system: <Info size={20} className="text-blue-400" />,
-    event: <Clock size={20} className="text-cyan-400" />,
-    account: <AlertTriangle size={20} className="text-red-400" />,
-    submission: <CheckCircle2 size={20} className="text-emerald-400" />,
-    admin_message: <MessageSquare size={20} className="text-purple-400" />,
-    problem: <FileText size={20} className="text-yellow-400" />,
-    certificate: <Award size={20} className="text-amber-400" />,
-};
+function getRelativeTimeLabel(value) {
+    if (!value) return "Just now";
+    const ts = new Date(value).getTime();
+    if (!Number.isFinite(ts)) return "Just now";
+
+    const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (diffSec < 60) return "Just now";
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+    return `${Math.floor(diffSec / 86400)}d ago`;
+}
+
+function getNotificationMeta(type) {
+    switch (type) {
+        case "critical":
+            return {
+                icon: <AlertCircle size={16} className="text-red-300" />,
+                iconWrap: "bg-red-500/20 border-red-400/30",
+            };
+        case "event":
+            return {
+                icon: <Clock size={16} className="text-cyan-300" />,
+                iconWrap: "bg-cyan-500/20 border-cyan-400/30",
+            };
+        case "account":
+            return {
+                icon: <AlertTriangle size={16} className="text-rose-300" />,
+                iconWrap: "bg-rose-500/20 border-rose-400/30",
+            };
+        case "submission":
+            return {
+                icon: <CheckCircle2 size={16} className="text-rose-300" />,
+                iconWrap: "bg-rose-500/20 border-rose-400/30",
+            };
+        case "admin_message":
+            return {
+                icon: <MessageSquare size={16} className="text-violet-300" />,
+                iconWrap: "bg-violet-500/20 border-violet-400/30",
+            };
+        case "problem":
+            return {
+                icon: <FileText size={16} className="text-yellow-300" />,
+                iconWrap: "bg-yellow-500/20 border-yellow-400/30",
+            };
+        case "certificate":
+            return {
+                icon: <Award size={16} className="text-amber-300" />,
+                iconWrap: "bg-amber-500/20 border-amber-400/30",
+            };
+        case "system":
+            return {
+                icon: <Info size={16} className="text-sky-300" />,
+                iconWrap: "bg-sky-500/20 border-sky-400/30",
+            };
+        default:
+            return {
+                icon: <Bell size={16} className="text-slate-300" />,
+                iconWrap: "bg-slate-500/20 border-slate-400/30",
+            };
+    }
+}
 
 export default function NotificationsPage() {
     const navigate = useNavigate();
@@ -161,19 +211,19 @@ export default function NotificationsPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-950 to-black px-4 py-12 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-gray-950 to-black px-4 py-10 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-4xl">
                 {/* Header */}
-                <div className="mb-8 flex items-center justify-between">
+                <div className="mb-8 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-4">
-                        <div className="rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 p-3">
+                        <div className="rounded-xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 p-3">
                             <Bell size={32} className="text-cyan-400" />
                         </div>
                         <div>
                             <h1 className="text-3xl font-bold text-white lg:text-4xl">
                                 Notifications
                             </h1>
-                            <p className="text-sm text-gray-400">
+                            <p className="text-sm text-white/60">
                                 {summary.unreadCount} unread
                                 {summary.critical > 0 &&
                                     ` • ${summary.critical} critical`}
@@ -190,7 +240,7 @@ export default function NotificationsPage() {
                 </div>
 
                 {/* Controls */}
-                <div className="mb-6 space-y-4 rounded-xl border border-white/10 bg-black/40 p-4 sm:p-6">
+                <div className="mb-6 space-y-4 rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/65 to-black/50 p-4 sm:p-6">
                     {/* Filters and actions */}
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         {/* Filters */}
@@ -201,7 +251,7 @@ export default function NotificationsPage() {
                                         key={f}
                                         onClick={() => setFilter(f)}
                                         className={`rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold transition-all ${filter === f
-                                            ? "bg-cyan-600 text-white"
+                                            ? "border border-cyan-400/50 bg-cyan-500/20 text-cyan-100"
                                             : "border border-white/20 text-white/70 hover:bg-white/10"
                                             }`}
                                     >
@@ -216,7 +266,7 @@ export default function NotificationsPage() {
                         <select
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value)}
-                            className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-xs sm:text-sm font-semibold text-white outline-none transition-colors focus:border-cyan-500/50 focus:bg-white/10"
+                            className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-xs font-semibold text-white outline-none transition-colors focus:border-cyan-500/50 focus:bg-white/10 sm:text-sm"
                         >
                             <option value="newest">Newest First</option>
                             <option value="oldest">Oldest First</option>
@@ -256,7 +306,7 @@ export default function NotificationsPage() {
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mb-6 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-4 flex items-center justify-between gap-4"
+                        className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-4"
                     >
                         <div className="text-sm font-semibold text-cyan-200">
                             {selectedCount} selected
@@ -294,7 +344,7 @@ export default function NotificationsPage() {
                         ))}
                     </div>
                 ) : filteredNotifications.length === 0 ? (
-                    <div className="rounded-xl border border-white/10 bg-black/40 py-16 text-center">
+                    <div className="rounded-2xl border border-white/10 bg-black/40 py-16 text-center">
                         <Bell size={48} className="mx-auto mb-4 text-white/20" />
                         <p className="text-lg text-white/60">No notifications</p>
                         <p className="text-sm text-white/40">
@@ -313,9 +363,9 @@ export default function NotificationsPage() {
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -10 }}
-                                    className={`group relative rounded-xl border p-4 sm:p-6 transition-all ${!notification.isRead
-                                        ? "border-cyan-500/30 bg-cyan-500/10 ring-1 ring-cyan-500/20"
-                                        : "border-white/10 bg-white/5"
+                                    className={`group relative rounded-2xl border p-4 sm:p-5 transition-all ${!notification.isRead
+                                        ? "border-cyan-400/35 bg-cyan-500/10"
+                                        : "border-white/10 bg-white/[0.04]"
                                         }`}
                                 >
                                     {/* Checkbox */}
@@ -327,22 +377,24 @@ export default function NotificationsPage() {
                                     />
 
                                     {/* Content with margin for checkbox */}
-                                    <div className="ml-8 flex gap-4">
+                                    <div className="ml-8 flex gap-3.5">
                                         {/* Icon */}
-                                        <div className="mt-1 shrink-0">
-                                            {NOTIFICATION_ICONS[notification.type]}
+                                        <div
+                                            className={`mt-0.5 shrink-0 rounded-lg border p-1.5 ${getNotificationMeta(notification.type).iconWrap}`}
+                                        >
+                                            {getNotificationMeta(notification.type).icon}
                                         </div>
 
                                         {/* Main content */}
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-start justify-between gap-4">
+                                            <div className="flex items-start justify-between gap-3">
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <h3 className="text-lg font-semibold text-white">
-                                                            {notification.title}
+                                                        <h3 className="text-sm font-semibold text-white sm:text-base">
+                                                            {notification.title || "Notification"}
                                                         </h3>
                                                         {notification.priority === "critical" && (
-                                                            <span className="inline-flex items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-bold text-red-200">
+                                                            <span className="inline-flex items-center gap-1 rounded-full border border-red-400/30 bg-red-500/20 px-2 py-0.5 text-[11px] font-bold text-red-200">
                                                                 <AlertCircle size={12} />
                                                                 CRITICAL
                                                             </span>
@@ -352,12 +404,12 @@ export default function NotificationsPage() {
                                                         )}
                                                     </div>
 
-                                                    <p className="mt-2 text-base text-gray-300">
-                                                        {notification.message}
+                                                    <p className="mt-1.5 text-sm text-white/75 sm:text-[15px]">
+                                                        {notification.message || "No details available."}
                                                     </p>
 
                                                     {notification.description && (
-                                                        <p className="mt-2 text-sm text-gray-400">
+                                                        <p className="mt-2 text-xs text-white/50 sm:text-sm">
                                                             {notification.description}
                                                         </p>
                                                     )}
@@ -369,31 +421,23 @@ export default function NotificationsPage() {
                                                                 onClick={() =>
                                                                     navigate(notification.actionUrl)
                                                                 }
-                                                                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-cyan-600/30 px-4 py-2 text-sm font-semibold text-cyan-200 hover:bg-cyan-600/50 transition-all"
+                                                                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-cyan-400/35 bg-cyan-500/12 px-3.5 py-2 text-sm font-semibold text-cyan-200 transition-all hover:bg-cyan-500/20"
                                                             >
                                                                 {notification.actionLabel} →
                                                             </button>
                                                         )}
 
                                                     {/* Metadata */}
-                                                    <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-500">
-                                                        <div>
-                                                            Type:{" "}
-                                                            <span className="text-cyan-400">
-                                                                {notification.type}
-                                                            </span>
-                                                        </div>
-                                                        <div>
-                                                            Priority:{" "}
-                                                            <span className="text-yellow-400">
-                                                                {notification.priority}
-                                                            </span>
-                                                        </div>
-                                                        <div>
-                                                            {new Date(
-                                                                notification.createdAt
-                                                            ).toLocaleString()}
-                                                        </div>
+                                                    <div className="mt-2.5 flex flex-wrap gap-2 text-[11px] text-white/45">
+                                                        <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 uppercase tracking-wide text-white/55">
+                                                            {notification.type || "general"}
+                                                        </span>
+                                                        <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 uppercase tracking-wide text-white/55">
+                                                            {notification.priority || "normal"}
+                                                        </span>
+                                                        <span className="px-1 py-0.5 text-white/45">
+                                                            {getRelativeTimeLabel(notification.createdAt || notification.updatedAt)}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
