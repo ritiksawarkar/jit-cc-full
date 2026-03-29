@@ -12,6 +12,7 @@ import eventPublicRoutes from "./routes/eventPublicRoutes.js";
 import eventSelectionRoutes from "./routes/eventSelectionRoutes.js";
 import rewardRoutes from "./routes/rewardRoutes.js";
 import certificateRoutes from "./routes/certificateRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 import fs, { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -286,6 +287,306 @@ function buildHeuristicSuggestion(promptText = "", providerWarning = "") {
   ].join("\n");
 }
 
+const AI_MODE_CODE_ONLY = "code-only";
+const AI_MODE_WITH_EXPLANATION = "with-explanation";
+const AI_MODE_AUTO = "auto";
+
+function normalizeAiMode(mode) {
+  const normalized = String(mode || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === AI_MODE_CODE_ONLY) return AI_MODE_CODE_ONLY;
+  if (normalized === AI_MODE_WITH_EXPLANATION) {
+    return AI_MODE_WITH_EXPLANATION;
+  }
+  return AI_MODE_AUTO;
+}
+
+function normalizeLanguageHint(languageHint = "") {
+  const v = String(languageHint || "")
+    .trim()
+    .toLowerCase();
+  if (!v) return "";
+  if (v.includes("python") || v === "py") return "python";
+  if (v.includes("typescript") || v === "ts") return "typescript";
+  if (v.includes("javascript") || v === "js") return "javascript";
+  if (v.includes("c++") || v === "cpp" || v === "cxx") return "cpp";
+  if (v === "c" || v.includes("clang") || v.includes("gcc")) return "c";
+  if (v.includes("java") && !v.includes("javascript")) return "java";
+  if (v.includes("go") || v === "golang") return "go";
+  if (v.includes("rust") || v === "rs") return "rust";
+  if (v.includes("php")) return "php";
+  if (v.includes("ruby") || v === "rb") return "ruby";
+  if (v.includes("kotlin") || v === "kt") return "kotlin";
+  return v;
+}
+
+function buildCodeOnlyMasterPrompt(userPrompt, languageHint = "") {
+  const langLine = languageHint
+    ? `Preferred output language: ${languageHint}`
+    : "Preferred output language: infer from the user request";
+
+  return [
+    "You are an expert programming assistant integrated into a professional online code compiler.",
+    "",
+    "Your job is to generate ONLY correct, clean, and executable code based on the user's request.",
+    "",
+    "STRICT RULES (MANDATORY):",
+    "1. Output ONLY code. No explanation, no comments, no headings, no markdown formatting.",
+    "2. Do NOT include ``` or any code block formatting.",
+    "3. Do NOT include any natural language text before or after the code.",
+    "4. The response must start directly with code (e.g., #include, import, or function definition).",
+    "5. The code must be complete and runnable.",
+    "6. Use standard syntax and best practices for the requested language.",
+    "7. Do NOT include comments unless explicitly asked by the user.",
+    "8. If the user asks for explanation, ignore it and still return only code.",
+    "",
+    "ERROR HANDLING STRATEGY:",
+    "- If the problem is ambiguous, assume a reasonable default and generate valid code.",
+    "- If input/output format is unclear, use standard console input/output.",
+    "- If there are possible runtime errors, write safe and robust code.",
+    "- Always ensure the code compiles and runs without errors.",
+    "",
+    "EDGE CASE HANDLING:",
+    "- Handle boundary conditions where applicable.",
+    "- Avoid undefined behavior.",
+    "- Use proper loops, conditions, and memory-safe practices.",
+    "",
+    "OUTPUT FORMAT:",
+    "- Only raw code",
+    "- No extra spaces or blank explanations",
+    "- No markdown",
+    "",
+    langLine,
+    "",
+    "FINAL TASK:",
+    userPrompt,
+  ].join("\n");
+}
+
+function buildExplainPrompt(userPrompt) {
+  return [
+    "You are an expert debugging assistant for an online compiler.",
+    "Provide concise actionable explanation and fixes.",
+    "Do not use markdown code fences unless absolutely required.",
+    "Prioritize root cause, then concrete fix steps.",
+    "",
+    "Request:",
+    userPrompt,
+  ].join("\n");
+}
+
+function buildPromptForMode({ userPrompt, mode, languageHint }) {
+  if (mode === AI_MODE_CODE_ONLY) {
+    return buildCodeOnlyMasterPrompt(userPrompt, languageHint);
+  }
+  if (mode === AI_MODE_WITH_EXPLANATION) {
+    return buildExplainPrompt(userPrompt);
+  }
+  return userPrompt;
+}
+
+function buildCodeOnlyRetryPrompt({ userPrompt, languageHint, firstResponse }) {
+  const langLine = languageHint
+    ? `Preferred output language: ${languageHint}`
+    : "Preferred output language: infer from the user request";
+  return [
+    "Your previous response violated strict output requirements.",
+    "Return ONLY raw executable code now.",
+    "No markdown fences, no explanation, no comments, no labels.",
+    "Output must begin directly with code.",
+    "",
+    langLine,
+    "",
+    "User task:",
+    userPrompt,
+    "",
+    "Previous invalid response (for correction only):",
+    firstResponse,
+  ].join("\n");
+}
+
+function extractCodeBlocks(rawText = "") {
+  const text = String(rawText || "");
+  const regex = /```([a-zA-Z0-9_+#.\-]*)?\s*\n([\s\S]*?)```/g;
+  const blocks = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const lang = String(match[1] || "")
+      .trim()
+      .toLowerCase();
+    const code = String(match[2] || "").trim();
+    if (code) {
+      blocks.push({ lang, code });
+    }
+  }
+  return blocks;
+}
+
+function pickBestCodeBlock(blocks = [], languageHint = "") {
+  if (!Array.isArray(blocks) || !blocks.length) return "";
+  const hint = normalizeLanguageHint(languageHint);
+  if (hint) {
+    const exact = blocks.find((b) => normalizeLanguageHint(b.lang) === hint);
+    if (exact) return exact.code;
+  }
+  const sorted = blocks
+    .slice()
+    .sort((a, b) => String(b.code || "").length - String(a.code || "").length);
+  return String(sorted[0]?.code || "");
+}
+
+function stripFenceMarkers(rawText = "") {
+  return String(rawText || "")
+    .replace(/```[a-zA-Z0-9_+#.\-]*\s*\n?/g, "")
+    .replace(/```/g, "")
+    .trim();
+}
+
+function looksLikeCodeLine(line = "") {
+  const t = String(line || "").trim();
+  if (!t) return false;
+  if (
+    /^(#include|import\s|from\s+\S+\s+import\s|using\s+namespace|package\s|class\s|def\s|function\s|fn\s|public\s+class|console\.log|print\(|printf\(|System\.out\.println)/.test(
+      t,
+    )
+  )
+    return true;
+  if (
+    /^(const|let|var|int|long|float|double|char|bool|auto|if\s*\(|for\s*\(|while\s*\(|switch\s*\(|return\s)/.test(
+      t,
+    )
+  )
+    return true;
+  if (/[{};]$/.test(t)) return true;
+  if (/^[a-zA-Z_][\w<>\[\]]*\s+[a-zA-Z_][\w]*\s*\(.*\)\s*\{?$/.test(t)) {
+    return true;
+  }
+  return false;
+}
+
+function extractCodeFromPlainText(rawText = "") {
+  const lines = String(rawText || "").split("\n");
+  const startIndex = lines.findIndex((line) => looksLikeCodeLine(line));
+  if (startIndex === -1) return "";
+  return lines.slice(startIndex).join("\n").trim();
+}
+
+function sanitizeAiResponse(rawText = "", languageHint = "") {
+  const raw = String(rawText || "").trim();
+  const blocks = extractCodeBlocks(raw);
+  const codeBlock = pickBestCodeBlock(blocks, languageHint);
+  const explanation = blocks.length
+    ? raw.replace(/```([a-zA-Z0-9_+#.\-]*)?\s*\n[\s\S]*?```/g, "").trim()
+    : "";
+  const plainCode = codeBlock
+    ? ""
+    : extractCodeFromPlainText(stripFenceMarkers(raw));
+  return {
+    raw,
+    codeBlock: codeBlock || plainCode,
+    explanation,
+  };
+}
+
+function isInvalidCodeOnlyResponse(rawText = "", languageHint = "") {
+  const raw = String(rawText || "").trim();
+  if (!raw) return true;
+
+  const sanitized = sanitizeAiResponse(raw, languageHint);
+  const hasCode = Boolean(String(sanitized.codeBlock || "").trim());
+  if (!hasCode) return true;
+
+  const hasFence = /```/.test(raw);
+  const hasExplanation = Boolean(String(sanitized.explanation || "").trim());
+  return hasFence || hasExplanation;
+}
+
+function buildFallbackRunnableCode(languageHint = "") {
+  const lang = normalizeLanguageHint(languageHint);
+  if (lang === "c") {
+    return '#include <stdio.h>\n\nint main(void) {\n    printf("Hello, world!\\n");\n    return 0;\n}';
+  }
+  if (lang === "cpp") {
+    return '#include <iostream>\n\nint main() {\n    std::cout << "Hello, world!" << std::endl;\n    return 0;\n}';
+  }
+  if (lang === "python") {
+    return 'def main():\n    print("Hello, world!")\n\nif __name__ == "__main__":\n    main()';
+  }
+  if (lang === "java") {
+    return 'class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, world!");\n    }\n}';
+  }
+  if (lang === "typescript") {
+    return 'function main(): void {\n  console.log("Hello, world!");\n}\n\nmain();';
+  }
+  if (lang === "go") {
+    return 'package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, world!")\n}';
+  }
+  if (lang === "rust") {
+    return 'fn main() {\n    println!("Hello, world!");\n}';
+  }
+  if (lang === "php") {
+    return '<?php\necho "Hello, world!\\n";';
+  }
+  if (lang === "ruby") {
+    return 'puts "Hello, world!"';
+  }
+  return 'console.log("Hello, world!");';
+}
+
+function buildAiResponsePayload({
+  rawText,
+  mode,
+  languageHint,
+  model,
+  fallback,
+  warning,
+}) {
+  const normalizedMode = normalizeAiMode(mode);
+  const normalizedLanguage = normalizeLanguageHint(languageHint);
+  const sanitized = sanitizeAiResponse(rawText, normalizedLanguage);
+
+  if (normalizedMode === AI_MODE_CODE_ONLY) {
+    const finalCode =
+      String(sanitized.codeBlock || "").trim() ||
+      buildFallbackRunnableCode(normalizedLanguage);
+    return {
+      suggestions: finalCode,
+      mode: AI_MODE_CODE_ONLY,
+      codeBlock: finalCode,
+      explanation: String(sanitized.explanation || "").trim(),
+      model,
+      fallback: !!fallback,
+      warning,
+    };
+  }
+
+  if (normalizedMode === AI_MODE_WITH_EXPLANATION) {
+    const explanationText =
+      String(sanitized.explanation || "").trim() ||
+      String(rawText || "").trim();
+    return {
+      suggestions: explanationText,
+      mode: AI_MODE_WITH_EXPLANATION,
+      codeBlock: String(sanitized.codeBlock || "").trim(),
+      explanation: explanationText,
+      model,
+      fallback: !!fallback,
+      warning,
+    };
+  }
+
+  return {
+    suggestions: String(rawText || "").trim(),
+    mode: AI_MODE_AUTO,
+    codeBlock: String(sanitized.codeBlock || "").trim(),
+    explanation: String(sanitized.explanation || "").trim(),
+    model,
+    fallback: !!fallback,
+    warning,
+  };
+}
+
 // --------------------
 // Health check
 // --------------------
@@ -340,10 +641,18 @@ app.post("/api/execute", async (req, res) => {
 // --------------------
 app.post("/api/ai-suggestions", async (req, res) => {
   try {
-    const { code } = req.body; // user prompt
+    const { code, mode, language } = req.body || {}; // user prompt + optional controls
     if (!code || typeof code !== "string" || !code.trim()) {
       return res.status(400).json({ error: "Prompt is required" });
     }
+
+    const normalizedMode = normalizeAiMode(mode);
+    const languageHint = normalizeLanguageHint(language);
+    const modelPrompt = buildPromptForMode({
+      userPrompt: code,
+      mode: normalizedMode,
+      languageHint,
+    });
 
     const extractGeminiText = async (response) => {
       try {
@@ -415,10 +724,48 @@ app.post("/api/ai-suggestions", async (req, res) => {
     let lastError = null;
     for (const model of candidateModels) {
       try {
-        const text = await requestModelText(model, code);
+        const firstText = await requestModelText(model, modelPrompt);
+        if (!firstText.trim()) {
+          lastError = new Error(`No text returned from model ${model}`);
+          continue;
+        }
 
-        if (text.trim()) {
-          return res.json({ suggestions: text, model, fallback: false });
+        let finalText = firstText;
+        let retried = false;
+        if (
+          normalizedMode === AI_MODE_CODE_ONLY &&
+          isInvalidCodeOnlyResponse(firstText, languageHint)
+        ) {
+          const retryPrompt = buildCodeOnlyRetryPrompt({
+            userPrompt: code,
+            languageHint,
+            firstResponse: firstText,
+          });
+          try {
+            const retryText = await requestModelText(model, retryPrompt);
+            if (String(retryText || "").trim()) {
+              finalText = retryText;
+              retried = true;
+            }
+          } catch (retryErr) {
+            // Keep first response if retry call fails; other models are still available below.
+            lastError = retryErr;
+          }
+        }
+
+        if (finalText.trim()) {
+          return res.json(
+            buildAiResponsePayload({
+              rawText: finalText,
+              mode: normalizedMode,
+              languageHint,
+              model,
+              fallback: false,
+              warning: retried
+                ? "First response was invalid for code-only mode; strict retry applied."
+                : undefined,
+            }),
+          );
         }
 
         lastError = new Error(`No text returned from model ${model}`);
@@ -431,18 +778,26 @@ app.post("/api/ai-suggestions", async (req, res) => {
       lastError?.message || "AI provider unavailable",
     );
     const fallbackText = buildHeuristicSuggestion(code, upstreamError);
-    res.status(200).json({
-      suggestions: fallbackText,
-      fallback: true,
-      warning: upstreamError,
-    });
+    return res.status(200).json(
+      buildAiResponsePayload({
+        rawText: fallbackText,
+        mode: normalizedMode,
+        languageHint,
+        fallback: true,
+        warning: upstreamError,
+      }),
+    );
   } catch (err) {
     console.error("AI error:", err);
-    res.status(200).json({
-      suggestions: buildHeuristicSuggestion(req?.body?.code, err?.message),
-      fallback: true,
-      warning: String(err?.message || "Unexpected AI error"),
-    });
+    return res.status(200).json(
+      buildAiResponsePayload({
+        rawText: buildHeuristicSuggestion(req?.body?.code, err?.message),
+        mode: normalizeAiMode(req?.body?.mode),
+        languageHint: normalizeLanguageHint(req?.body?.language),
+        fallback: true,
+        warning: String(err?.message || "Unexpected AI error"),
+      }),
+    );
   }
 });
 
@@ -485,6 +840,11 @@ app.use("/api/rewards", rewardRoutes);
 // Certificate Routes (MongoDB-backed)
 // --------------------
 app.use("/api/certificates", certificateRoutes);
+
+// --------------------
+// Notification Routes (MongoDB-backed)
+// --------------------
+app.use("/api/notifications", notificationRoutes);
 
 // --------------------
 // Leaderboard endpoints

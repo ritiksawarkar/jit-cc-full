@@ -17,7 +17,22 @@ import {
 } from "../services/api";
 import { useToast } from "./ToastProvider";
 import { motion } from "framer-motion";
-import { Play, RotateCcw, MoreVertical } from "lucide-react";
+import {
+  Play,
+  RotateCcw,
+  MoreVertical,
+  UserCircle2,
+  Settings,
+  History,
+  CalendarPlus,
+  CalendarDays,
+  BadgeCheck,
+  Shield,
+  Trophy,
+  Download,
+  LogOut,
+} from "lucide-react";
+import NotificationBadge from "./NotificationBadge";
 import { resolveDependencies } from "../services/api";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -198,6 +213,7 @@ export default function RunButtons() {
   const [joinEventCode, setJoinEventCode] = useState("");
   const [joinEventError, setJoinEventError] = useState("");
   const [isJoiningEvent, setIsJoiningEvent] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [eventSessionState, setEventSessionState] = useState({
     active: false,
     expired: false,
@@ -540,6 +556,22 @@ export default function RunButtons() {
       document.removeEventListener("keydown", handleEscape);
     };
   }, [isJoinEventOpen]);
+
+  useEffect(() => {
+    if (!isLogoutConfirmOpen) return;
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setIsLogoutConfirmOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isLogoutConfirmOpen]);
 
   useEffect(() => {
     if (!isMyEventsOpen) return;
@@ -986,8 +1018,14 @@ export default function RunButtons() {
   };
 
   const handleLogout = () => {
-    logout();
     setIsMenuOpen(false);
+    setIsLogoutConfirmOpen(true);
+  };
+
+  const confirmLogout = () => {
+    setIsLogoutConfirmOpen(false);
+    closeLoginModal();
+    logout();
   };
 
   const openJoinEventModal = () => {
@@ -1080,7 +1118,7 @@ export default function RunButtons() {
     : "My Certification";
 
   return (
-    <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
+    <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap sm:items-center sm:gap-3">
       <motion.button
         whileHover={{
           scale: 1.03,
@@ -1090,12 +1128,11 @@ export default function RunButtons() {
         whileTap={{ scale: 0.98 }}
         disabled={isRunning}
         onClick={onRun}
-        className={`min-h-10 rounded-xl bg-indigo-600 px-3 py-2 text-white transition sm:px-4 flex items-center gap-2 hover:bg-indigo-500 ${isRunning ? "opacity-70 cursor-not-allowed" : ""
+        className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-500 px-4 py-2 text-white transition-all hover:from-indigo-500 hover:to-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 sm:px-5 ${isRunning ? "opacity-60 cursor-not-allowed" : ""
           }`}
       >
-        <Play size={18} />
-        <span className="text-sm font-semibold">{isRunning ? "Running…" : "Run"}</span>
-        <span className="hidden text-sm text-white/90 sm:inline">Code</span>
+        <Play size={18} strokeWidth={2.5} />
+        <span className="text-sm font-semibold leading-none">Run</span>
       </motion.button>
 
       <motion.button
@@ -1103,10 +1140,12 @@ export default function RunButtons() {
         whileTap={{ scale: 0.98 }}
         disabled={isSubmittingCode || (eventSessionState.active && eventSessionState.expired)}
         onClick={onSubmitCode}
-        className={`min-h-10 rounded-xl bg-emerald-600 px-3 py-2 text-white transition sm:px-4 flex items-center gap-2 hover:bg-emerald-500 ${(isSubmittingCode || (eventSessionState.active && eventSessionState.expired)) ? "opacity-70 cursor-not-allowed" : ""
+        className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2 text-white transition-all hover:from-emerald-500 hover:to-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 sm:px-5 ${isSubmittingCode || (eventSessionState.active && eventSessionState.expired)
+          ? "opacity-60 cursor-not-allowed"
+          : ""
           }`}
       >
-        <span className="text-sm font-semibold">
+        <span className="text-sm font-semibold leading-none">
           {isSubmittingCode
             ? "Submitting..."
             : eventSessionState.active && eventSessionState.expired
@@ -1116,11 +1155,13 @@ export default function RunButtons() {
       </motion.button>
 
       {eventSessionState.active && (
-        <div className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${eventSessionState.expired
-          ? "border-red-400/50 bg-red-500/10 text-red-200"
-          : "border-amber-300/40 bg-amber-500/10 text-amber-100"
-          }`}>
-          Event Timer: {formatHms(eventSessionState.remainingSeconds)}
+        <div
+          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${eventSessionState.expired
+            ? "border-red-400/50 bg-red-500/10 text-red-200"
+            : "border-amber-400/50 bg-amber-500/10 text-amber-100"
+            }`}
+        >
+          {formatHms(eventSessionState.remainingSeconds)}
         </div>
       )}
 
@@ -1128,10 +1169,10 @@ export default function RunButtons() {
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.98 }}
         onClick={clearIO}
-        className="min-h-10 rounded-xl bg-white/10 px-3 py-2 text-white transition hover:bg-white/20 flex items-center gap-2"
+        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-white transition-colors hover:border-white/40 hover:bg-white/10 sm:px-4"
       >
-        <RotateCcw size={18} />
-        <span className="hidden text-sm sm:inline">Clear IO</span>
+        <RotateCcw size={18} strokeWidth={2} />
+        <span className="hidden text-sm font-medium leading-none sm:inline">Clear</span>
       </motion.button>
 
       <motion.button
@@ -1142,17 +1183,32 @@ export default function RunButtons() {
           setDepsDetected(null);
           try {
             const active = (tabs || []).find((t) => t.id === activeTabId) || null;
-            const src = (active?.content ?? source) || '';
-            const data = await resolveDependencies({ language: 'auto', source: src, scanProject: true, dryRun: true, action: 'detect' });
-            setDepsDetected(data?.installResults?.detected || data?.detected || { node: [], python: [] });
+            const src = (active?.content ?? source) || "";
+            const data = await resolveDependencies({
+              language: "auto",
+              source: src,
+              scanProject: true,
+              dryRun: true,
+              action: "detect",
+            });
+            setDepsDetected(
+              data?.installResults?.detected ||
+              data?.detected ||
+              { node: [], python: [] }
+            );
           } catch (err) {
-            setDepsDetected({ error: (err?.response?.data?.error || err?.message || String(err)) });
+            setDepsDetected({
+              error: err?.response?.data?.error || err?.message || String(err),
+            });
           }
         }}
-        className="min-h-10 rounded-xl bg-white/10 px-3 py-2 text-white transition hover:bg-white/20 flex items-center gap-2"
+        className="hidden min-h-10 items-center justify-center rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-white transition-colors hover:border-white/40 hover:bg-white/10 sm:inline-flex"
       >
-        <span className="text-sm font-medium">Deps</span>
+        <span className="text-sm font-medium leading-none">Deps</span>
       </motion.button>
+
+      {/* Notification badge right next to Deps */}
+      <NotificationBadge />
 
       <div className="relative" ref={menuRef}>
         <motion.button
@@ -1160,77 +1216,84 @@ export default function RunButtons() {
           whileTap={{ scale: 0.98 }}
           type="button"
           onClick={() => setIsMenuOpen((prev) => !prev)}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/5 text-white transition hover:border-cyan-300/50 hover:text-cyan-200"
+          className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 bg-white/5 text-white transition-colors hover:border-cyan-400/50 hover:bg-white/10 hover:text-cyan-200 focus:outline-none focus:ring-2 focus:ring-white/20"
         >
-          <MoreVertical size={18} />
+          <MoreVertical size={18} strokeWidth={2} />
         </motion.button>
 
         {isMenuOpen && (
-          <div className="absolute right-0 z-50 mt-2 w-44 rounded-lg border border-white/10 bg-black/85 p-2 text-sm text-white shadow-lg backdrop-blur">
-            <div className="px-3 pb-2 text-xs uppercase tracking-wider text-white/40">
-              {currentUser ? "Signed In" : "Guest Mode"}
+          <div className="absolute right-0 z-50 mt-2 w-52 rounded-lg border border-white/10 bg-black/95 p-1 text-sm text-white shadow-xl backdrop-blur">
+            <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-white/50">
+              {currentUser ? "Account" : "Guest"}
             </div>
-            {currentUser && String(currentUser?.role || "").toLowerCase() === "student" && (
-              <div className="mb-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-white/75">
-                <div className="flex items-center justify-between">
-                  <span>Joined Events:</span>
-                  <span className="font-semibold text-cyan-200">
-                    {menuQuickCounts.loading && !menuQuickCounts.hasLoaded
-                      ? "..."
-                      : menuQuickCounts.joinedEvents}
-                  </span>
+            {currentUser &&
+              String(currentUser?.role || "").toLowerCase() === "student" && (
+                <div className="mx-2 mb-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
+                  <div className="flex items-center justify-between">
+                    <span>Events:</span>
+                    <span className="font-semibold text-cyan-300">
+                      {menuQuickCounts.loading && !menuQuickCounts.hasLoaded
+                        ? "…"
+                        : menuQuickCounts.joinedEvents}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <span>Certificates:</span>
+                    <span className="font-semibold text-cyan-300">
+                      {menuQuickCounts.loading && !menuQuickCounts.hasLoaded
+                        ? "…"
+                        : menuQuickCounts.certificates}
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span>Certificates:</span>
-                  <span className="font-semibold text-cyan-200">
-                    {menuQuickCounts.loading && !menuQuickCounts.hasLoaded
-                      ? "..."
-                      : menuQuickCounts.certificates}
-                  </span>
-                </div>
-              </div>
-            )}
+              )}
             <button
               type="button"
               onClick={handleLoginClick}
-              className="w-full rounded px-3 py-2 text-left transition hover:bg-white/10 hover:text-cyan-200"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
             >
-              {currentUser ? "Account" : "Login"}
+              <UserCircle2 size={15} className="shrink-0 opacity-80" />
+              <span className="flex-1">{currentUser ? "Account" : "Login"}</span>
             </button>
             <button
               type="button"
               onClick={handleSettingsClick}
-              className="w-full rounded px-3 py-2 text-left transition hover:bg-white/10 hover:text-cyan-200"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
             >
-              Settings
+              <Settings size={15} className="shrink-0 opacity-80" />
+              <span className="flex-1">Settings</span>
             </button>
             <button
               type="button"
               onClick={openSubmissionHistory}
-              className="w-full rounded px-3 py-2 text-left transition hover:bg-white/10 hover:text-cyan-200"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
             >
-              Submissions
+              <History size={15} className="shrink-0 opacity-80" />
+              <span className="flex-1">Submissions</span>
             </button>
             <button
               type="button"
               onClick={openJoinEventModal}
-              className="w-full rounded px-3 py-2 text-left transition hover:bg-white/10 hover:text-cyan-200"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
             >
-              Join Event
+              <CalendarPlus size={15} className="shrink-0 opacity-80" />
+              <span className="flex-1">Join Event</span>
             </button>
             <button
               type="button"
               onClick={openMyEvents}
-              className="w-full rounded px-3 py-2 text-left transition hover:bg-white/10 hover:text-cyan-200"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
             >
-              {myEventsMenuLabel}
+              <CalendarDays size={15} className="shrink-0 opacity-80" />
+              <span className="flex-1">{myEventsMenuLabel}</span>
             </button>
             <button
               type="button"
               onClick={openMyCertifications}
-              className="w-full rounded px-3 py-2 text-left transition hover:bg-white/10 hover:text-cyan-200"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
             >
-              {myCertificationsMenuLabel}
+              <BadgeCheck size={15} className="shrink-0 opacity-80" />
+              <span className="flex-1">{myCertificationsMenuLabel}</span>
             </button>
             {String(currentUser?.role || "").toLowerCase() === "admin" && (
               <button
@@ -1239,34 +1302,38 @@ export default function RunButtons() {
                   setIsMenuOpen(false);
                   navigate("/admin/dashboard");
                 }}
-                className="w-full rounded px-3 py-2 text-left transition hover:bg-white/10 hover:text-cyan-200"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
               >
-                Admin Dashboard
+                <Shield size={15} className="shrink-0 opacity-80" />
+                <span className="flex-1">Admin Panel</span>
               </button>
             )}
             <button
               type="button"
               onClick={openLeaderboard}
-              className="w-full rounded px-3 py-2 text-left transition hover:bg-white/10 hover:text-cyan-200"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
             >
-              Leaderboard
+              <Trophy size={15} className="shrink-0 opacity-80" />
+              <span className="flex-1">Leaderboard</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportToZip}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-white/10 hover:text-cyan-300"
+            >
+              <Download size={15} className="shrink-0 opacity-80" />
+              <span className="flex-1">Export</span>
             </button>
             {currentUser && (
               <button
                 type="button"
                 onClick={handleLogout}
-                className="w-full rounded px-3 py-2 text-left transition hover:bg-red-500/20 hover:text-red-200"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm leading-none transition-colors hover:bg-red-500/20 hover:text-red-300"
               >
-                Logout
+                <LogOut size={15} className="shrink-0 opacity-80" />
+                <span className="flex-1">Logout</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={handleExportToZip}
-              className="w-full rounded px-3 py-2 text-left transition hover:bg-white/10 hover:text-cyan-200"
-            >
-              Export to Zip
-            </button>
           </div>
         )}
       </div>
@@ -1284,7 +1351,7 @@ export default function RunButtons() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 12 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
-              className="relative z-10 max-h-[90vh] w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-gray-950/95 text-white shadow-2xl"
+              className="relative z-10 max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-gray-950/95 text-white shadow-2xl"
             >
               <div className="flex flex-col p-4 sm:p-5">
                 <div className="mb-4">
@@ -1839,6 +1906,44 @@ export default function RunButtons() {
         )}
 
       {isLeaderboardOpen && <Leaderboard onClose={() => setIsLeaderboardOpen(false)} />}
+      {isLogoutConfirmOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3">
+            <div
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => setIsLogoutConfirmOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ duration: 0.16, ease: "easeOut" }}
+              className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-gray-950/95 p-5 text-white shadow-2xl"
+            >
+              <h3 className="text-lg font-semibold tracking-wide">Confirm Logout</h3>
+              <p className="mt-2 text-sm text-white/70">
+                Are you sure you want to logout?
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsLogoutConfirmOpen(false)}
+                  className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/80 transition hover:border-white/30 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmLogout}
+                  className="rounded-lg bg-red-500/85 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
+                >
+                  Logout
+                </button>
+              </div>
+            </motion.div>
+          </div>,
+          document.body
+        )}
       {isMyEventsOpen &&
         createPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3">

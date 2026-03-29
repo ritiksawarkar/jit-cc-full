@@ -94,6 +94,7 @@ export default function ProblemStatementPanel() {
     );
     const [lockedSelection, setLockedSelection] = React.useState(null);
     const [selectionLoading, setSelectionLoading] = React.useState(false);
+    const [isProblemPickerOpen, setIsProblemPickerOpen] = React.useState(false);
 
     const lockedProblemId = String(lockedSelection?.problemId || "");
     const isStudentEventMode = !isAdmin && Boolean(activeEventId);
@@ -278,6 +279,21 @@ export default function ProblemStatementPanel() {
 
         setSelectedProblemId(nextId);
         await loadProblemDetail(nextId);
+    };
+
+    const handlePickProblem = async (problemId) => {
+        const nextId = String(problemId || "").trim();
+        if (!nextId) return;
+
+        if (isStudentEventMode && lockedProblemId && nextId !== lockedProblemId) {
+            setProblemError("You are locked to one problem for this event.");
+            return;
+        }
+
+        setProblemError("");
+        setSelectedProblemId(nextId);
+        await loadProblemDetail(nextId);
+        setIsProblemPickerOpen(false);
     };
 
     const handleLockCurrentProblem = async () => {
@@ -466,30 +482,46 @@ export default function ProblemStatementPanel() {
     return (
         <div className="ui-surface flex h-full min-h-0 flex-col bg-gray-900/60 shadow-lg">
             <div className="ui-header">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-cyan-200/90">
-                    Problem Statement
-                </h2>
-                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <select
-                        value={selectedProblemId}
-                        onChange={handleProblemChange}
-                        disabled={
-                            isLoadingProblems ||
-                            !problems.length ||
-                            (isStudentEventMode && Boolean(lockedProblemId))
-                        }
-                        className="w-full rounded-lg border border-cyan-400/20 bg-gray-900/80 px-2 py-1.5 text-xs text-cyan-100 outline-none focus:border-cyan-300/60 sm:max-w-xs"
+                <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-xs font-semibold uppercase tracking-wide text-cyan-200/90">
+                        Problem Statement
+                    </h2>
+                    <button
+                        type="button"
+                        onClick={() => setIsProblemPickerOpen(true)}
+                        disabled={isLoadingProblems || !problems.length}
+                        className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        {!problems.length ? (
-                            <option value="">No server problem selected</option>
-                        ) : (
-                            problems.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                    {item.title}
-                                </option>
-                            ))
-                        )}
-                    </select>
+                        View
+                    </button>
+                </div>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    {isAdmin ? (
+                        <select
+                            value={selectedProblemId}
+                            onChange={handleProblemChange}
+                            disabled={
+                                isLoadingProblems ||
+                                !problems.length ||
+                                (isStudentEventMode && Boolean(lockedProblemId))
+                            }
+                            className="w-full rounded-lg border border-cyan-400/20 bg-gray-900/80 px-2 py-1.5 text-xs text-cyan-100 outline-none focus:border-cyan-300/60 sm:max-w-xs"
+                        >
+                            {!problems.length ? (
+                                <option value="">No server problem selected</option>
+                            ) : (
+                                problems.map((item) => (
+                                    <option key={item.id} value={item.id}>
+                                        {item.title}
+                                    </option>
+                                ))
+                            )}
+                        </select>
+                    ) : (
+                        <div className="w-full rounded-lg border border-cyan-400/20 bg-gray-900/80 px-2 py-1.5 text-xs text-cyan-100 sm:max-w-xs">
+                            {activeProblemMeta?.title || "No problem selected"}
+                        </div>
+                    )}
                     {activeProblemMeta && (
                         <div className="text-[11px] text-cyan-100/70">
                             {activeProblemMeta.difficulty.toUpperCase()} • {activeProblemMeta.totalPoints} pts • {activeProblemMeta.testCaseCount} tests
@@ -603,6 +635,66 @@ export default function ProblemStatementPanel() {
                     </div>
                 )}
             </div>
+
+            {isProblemPickerOpen && (
+                <div className="absolute inset-0 z-30 flex items-start justify-center bg-black/60 p-3 sm:p-5">
+                    <div className="w-full max-w-xl rounded-xl border border-cyan-500/20 bg-gray-900/95 shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-cyan-500/20 px-4 py-3">
+                            <h3 className="text-sm font-semibold text-cyan-100">
+                                Select Problem Statement
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => setIsProblemPickerOpen(false)}
+                                className="rounded-md border border-white/20 px-2 py-1 text-[11px] text-white/80 hover:bg-white/10"
+                            >
+                                Close
+                            </button>
+                        </div>
+
+                        <div className="max-h-[60vh] space-y-2 overflow-y-auto p-3">
+                            {!problems.length ? (
+                                <div className="rounded-lg border border-cyan-500/20 bg-gray-800/60 p-3 text-xs text-cyan-100/70">
+                                    No problems available right now.
+                                </div>
+                            ) : (
+                                problems.map((item) => {
+                                    const isSelected = String(item.id) === String(selectedProblemId);
+                                    const blockedByLock =
+                                        isStudentEventMode &&
+                                        Boolean(lockedProblemId) &&
+                                        String(item.id) !== String(lockedProblemId);
+
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            onClick={() => handlePickProblem(item.id)}
+                                            disabled={blockedByLock}
+                                            className={`w-full rounded-lg border p-3 text-left transition ${isSelected
+                                                    ? "border-cyan-300/70 bg-cyan-500/15"
+                                                    : "border-cyan-500/20 bg-gray-800/70 hover:bg-gray-800"
+                                                } ${blockedByLock ? "cursor-not-allowed opacity-50" : ""}`}
+                                        >
+                                            <div className="flex items-center justify-between gap-3">
+                                                <p className="text-sm font-semibold text-cyan-100">
+                                                    {item.title}
+                                                </p>
+                                                <span className="text-[10px] uppercase tracking-wide text-cyan-200/70">
+                                                    {String(item.difficulty || "medium")}
+                                                </span>
+                                            </div>
+                                            <p className="mt-1 line-clamp-2 text-xs text-cyan-100/75">
+                                                {String(item.statement || "No statement available")}
+                                            </p>
+                                        </button>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="min-h-0 flex-1 p-2.5 sm:p-3.5">
                 <textarea

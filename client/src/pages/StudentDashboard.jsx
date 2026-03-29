@@ -2,6 +2,16 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { jsPDF } from "jspdf";
 import { useCompilerStore } from "../store/useCompilerStore";
+import { useNotifications } from "../hooks/useNotifications";
+import NotificationCenter from "../components/NotificationCenter";
+import {
+    PageContainer,
+    PageHeader,
+    SectionCard,
+    Alert,
+    Button,
+    ResponsiveTable
+} from "../components/layout/PageLayout";
 import {
     claimPrizeAllocation,
     fetchPublicCertificateAssets,
@@ -228,6 +238,7 @@ async function copyToClipboard(text) {
 
 export default function StudentDashboard() {
     const currentUser = useCompilerStore((s) => s.currentUser);
+    const { notifications, summary } = useNotifications();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
@@ -320,167 +331,271 @@ export default function StudentDashboard() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-950 px-4 py-8 text-white sm:px-8">
-            <div className="mx-auto max-w-6xl rounded-2xl border border-cyan-500/20 bg-black/40 p-6">
-                <h1 className="text-2xl font-bold">Student Dashboard</h1>
-                <p className="mt-2 text-sm text-white/70">
-                    Welcome {currentUser?.name || "Student"}. Access the compiler and track your practice.
-                </p>
+        <div className="min-h-screen space-y-6 bg-gradient-to-br from-gray-950 via-gray-950 to-black py-8 sm:py-12 lg:py-16">
+            <PageContainer>
+                <PageHeader
+                    title="Student Dashboard"
+                    subtitle={`Welcome ${currentUser?.name || "Student"}. Track your achievements and certificates.`}
+                />
 
-                {(error || success) && (
-                    <div className="mt-4 space-y-2">
-                        {error && (
-                            <p className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-100">
-                                {error}
-                            </p>
-                        )}
-                        {success && (
-                            <p className="rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
-                                {success}
-                            </p>
-                        )}
-                    </div>
+                {error && (
+                    <Alert
+                        type="error"
+                        message={error}
+                        onClose={() => setError("")}
+                    />
                 )}
 
-                <div className="mt-6">
-                    <Link
-                        to="/compiler"
-                        className="inline-flex min-h-10 items-center rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-black"
-                    >
-                        Go To Compiler
+                {success && (
+                    <Alert
+                        type="success"
+                        message={success}
+                        onClose={() => setSuccess("")}
+                    />
+                )}
+
+                <div className="flex flex-col gap-3 sm:gap-4 lg:gap-6">
+                    <Link to="/compiler">
+                        <Button variant="primary" size="lg" className="w-full sm:w-auto">
+                            Go To Compiler
+                        </Button>
+                    </Link>
+                    <Link to="/certificates/verify">
+                        <Button variant="secondary" size="lg" className="w-full sm:w-auto">
+                            Verify Certificate
+                        </Button>
                     </Link>
                 </div>
+            </PageContainer>
 
-                {loading ? (
-                    <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-5 text-sm text-white/70">
-                        Loading rewards and certificates...
+            {/* Notifications Section */}
+            {notifications && notifications.length > 0 && (
+                <PageContainer>
+                    <NotificationCenter />
+                </PageContainer>
+            )}
+
+            {loading ? (
+                <PageContainer>
+                    <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-6 text-center sm:p-8">
+                        <div className="flex items-center justify-center gap-3">
+                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-cyan-500" />
+                            <p className="text-gray-400">Loading your rewards and certificates...</p>
+                        </div>
                     </div>
-                ) : (
-                    <>
-                        <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
-                            <h2 className="text-lg font-semibold">My Prizes</h2>
-                            <p className="mt-1 text-sm text-white/70">Track allocation status and submit claim details.</p>
-
+                </PageContainer>
+            ) : (
+                <>
+                    {/* Prizes Section */}
+                    <PageContainer>
+                        <SectionCard
+                            title="My Prizes"
+                            subtitle="Track allocation status and submit claim details."
+                        >
                             {myPrizes.length === 0 ? (
-                                <p className="mt-3 text-sm text-white/70">No prizes allocated yet.</p>
+                                <p className="py-8 text-center text-gray-400">
+                                    No prizes allocated yet. Keep practicing! 🚀
+                                </p>
                             ) : (
-                                <div className="mt-3 space-y-3">
+                                <div className="space-y-3 divide-y divide-white/10">
                                     {myPrizes.map((item) => (
-                                        <div key={item.id} className="rounded-lg border border-white/10 bg-black/30 p-3">
-                                            <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                                                <p><span className="text-white/60">Prize:</span> {item.prizeId?.title || "-"}</p>
-                                                <p><span className="text-white/60">Rank:</span> {item.rank ?? "-"}</p>
-                                                <p><span className="text-white/60">Status:</span> {item.status}</p>
-                                                <p><span className="text-white/60">Claimed:</span> {fmtDateTime(item.claimedAt)}</p>
+                                        <div
+                                            key={item.id}
+                                            className="space-y-4 rounded-lg border border-white/10 bg-white/5 p-4 sm:p-6 md:p-8 first:divide-y-0"
+                                        >
+                                            <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                                        Prize
+                                                    </p>
+                                                    <p className="mt-1 text-white">
+                                                        {item.prizeId?.title || "-"}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                                        Rank
+                                                    </p>
+                                                    <p className="mt-1 text-white">{item.rank ?? "-"}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                                        Status
+                                                    </p>
+                                                    <p className="mt-1">
+                                                        <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${item.status === "allocated"
+                                                            ? "bg-amber-500/20 text-amber-200"
+                                                            : "bg-emerald-500/20 text-emerald-200"
+                                                            }`}>
+                                                            {item.status}
+                                                        </span>
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                                        Claimed
+                                                    </p>
+                                                    <p className="mt-1 text-white/80">{fmtDateTime(item.claimedAt)}</p>
+                                                </div>
                                             </div>
 
                                             {item.status === "allocated" ? (
-                                                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                                                <div className="flex flex-col gap-3 pt-4 sm:flex-row">
                                                     <input
                                                         value={claimDetailsById[item.id] || ""}
-                                                        onChange={(e) => setClaimDetailsById((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                                        onChange={(e) =>
+                                                            setClaimDetailsById((prev) => ({
+                                                                ...prev,
+                                                                [item.id]: e.target.value,
+                                                            }))
+                                                        }
                                                         placeholder="Enter UPI / account / contact details for claim"
-                                                        className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none"
+                                                        className="flex-1 rounded-lg border border-white/15 bg-black/40 px-4 py-2 text-sm text-white outline-none transition-colors placeholder:text-gray-500 focus:border-cyan-500/50"
                                                     />
-                                                    <button
-                                                        type="button"
+                                                    <Button
+                                                        variant="primary"
                                                         onClick={() => handleClaimPrize(item.id)}
-                                                        className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-black"
+                                                        className="w-full sm:w-auto"
                                                     >
                                                         Claim Prize
-                                                    </button>
+                                                    </Button>
                                                 </div>
                                             ) : (
-                                                <p className="mt-2 text-xs text-white/65">Claim Details: {item.claimDetails || "-"}</p>
+                                                <p className="pt-2 text-xs text-gray-500">
+                                                    Claim Details: <span className="text-gray-400">{item.claimDetails || "-"}</span>
+                                                </p>
                                             )}
                                         </div>
                                     ))}
                                 </div>
                             )}
-                        </div>
+                        </SectionCard>
+                    </PageContainer>
 
-                        <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
-                            <h2 className="text-lg font-semibold">My Certificates</h2>
-                            <p className="mt-1 text-sm text-white/70">Verify certificates, copy code, and download PDF certificate summary.</p>
-
-                            <div className="mt-3">
-                                <Link
-                                    to="/certificates/verify"
-                                    className="inline-flex min-h-10 items-center rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-200"
-                                >
-                                    Open Public Verification Page
-                                </Link>
-                            </div>
-
+                    {/* Certificates Section */}
+                    <PageContainer>
+                        <SectionCard
+                            title="My Certificates"
+                            subtitle="Verify certificates, copy codes, and download PDF summaries."
+                        >
                             {myCertificates.length === 0 ? (
-                                <p className="mt-3 text-sm text-white/70">No certificates issued yet.</p>
+                                <p className="py-8 text-center text-gray-400">
+                                    No certificates issued yet. 📜
+                                </p>
                             ) : (
-                                <div className="mt-3 overflow-x-auto">
-                                    <table className="w-full min-w-[860px] text-left text-sm">
-                                        <thead className="text-white/60">
-                                            <tr>
-                                                <th className="py-2 pr-3">Event</th>
-                                                <th className="py-2 pr-3">Rank</th>
-                                                <th className="py-2 pr-3">Merit</th>
-                                                <th className="py-2 pr-3">Certificate No</th>
-                                                <th className="py-2 pr-3">Verification Code</th>
-                                                <th className="py-2 pr-3">Issued At</th>
-                                                <th className="py-2 pr-3">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {myCertificates.map((item) => (
-                                                <tr key={item.id} className="border-t border-white/10">
-                                                    <td className="py-2 pr-3 text-white">{item.eventId?.title || "-"}</td>
-                                                    <td className="py-2 pr-3 text-white/80">{item.rank ?? "-"}</td>
-                                                    <td className="py-2 pr-3 text-white/80">{item.merit || "none"}</td>
-                                                    <td className="py-2 pr-3 text-white/80">{item.certificateNo}</td>
-                                                    <td className="py-2 pr-3 text-white/80">{item.verificationCode}</td>
-                                                    <td className="py-2 pr-3 text-white/70">{fmtDateTime(item.issuedAt)}</td>
-                                                    <td className="py-2 pr-3">
-                                                        <div className="flex items-center gap-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleVerifyCertificate(item.verificationCode)}
-                                                                disabled={verifyingCode === item.verificationCode}
-                                                                className="rounded border border-emerald-400/40 px-2 py-1 text-xs text-emerald-200 disabled:opacity-70"
-                                                            >
-                                                                {verifyingCode === item.verificationCode ? "Verifying..." : "Verify"}
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleCopyVerificationCode(item.verificationCode)}
-                                                                className="rounded border border-amber-400/40 px-2 py-1 text-xs text-amber-200"
-                                                            >
-                                                                Copy Code
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    void downloadBrandedCertificatePdf(item, certificateAssets);
-                                                                }}
-                                                                className="rounded border border-cyan-400/40 px-2 py-1 text-xs text-cyan-200"
-                                                            >
-                                                                Download PDF
-                                                            </button>
-                                                            <Link
-                                                                to={`/certificates/verify?code=${encodeURIComponent(item.verificationCode || "")}`}
-                                                                className="rounded border border-white/30 px-2 py-1 text-xs text-white/85"
-                                                            >
-                                                                Public Verify
-                                                            </Link>
-                                                        </div>
-                                                    </td>
+                                <>
+                                    {/* Header Link */}
+                                    <div className="pb-4">
+                                        <Link to="/certificates/verify">
+                                            <Button variant="secondary" size="base">
+                                                Open Public Verification Page
+                                            </Button>
+                                        </Link>
+                                    </div>
+
+                                    {/* Responsive Table */}
+                                    <ResponsiveTable className="border-0">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="border-b border-white/10 bg-white/5">
+                                                <tr>
+                                                    <th className="px-4 py-3 font-semibold text-gray-400 lg:px-6">
+                                                        Event
+                                                    </th>
+                                                    <th className="px-4 py-3 font-semibold text-gray-400 lg:px-6">
+                                                        Rank
+                                                    </th>
+                                                    <th className="hidden px-4 py-3 font-semibold text-gray-400 lg:px-6 md:table-cell">
+                                                        Merit
+                                                    </th>
+                                                    <th className="hidden px-4 py-3 font-semibold text-gray-400 lg:px-6 xl:table-cell">
+                                                        Certificate #
+                                                    </th>
+                                                    <th className="hidden px-4 py-3 font-semibold text-gray-400 lg:px-6 xl:table-cell">
+                                                        Issued
+                                                    </th>
+                                                    <th className="px-4 py-3 font-semibold text-gray-400 lg:px-6">
+                                                        Actions
+                                                    </th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/10">
+                                                {myCertificates.map((item) => (
+                                                    <tr key={item.id} className="hover:bg-white/5 transition-colors">
+                                                        <td className="px-4 py-4 lg:px-6">
+                                                            <span className="font-medium text-white">
+                                                                {item.eventId?.title || "-"}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-4 text-white/80 lg:px-6">
+                                                            {item.rank ?? "-"}
+                                                        </td>
+                                                        <td className="hidden px-4 py-4 text-white/80 md:table-cell lg:px-6">
+                                                            {item.merit || "none"}
+                                                        </td>
+                                                        <td className="hidden px-4 py-4 text-gray-500 xl:table-cell lg:px-6">
+                                                            <code className="text-xs">{item.certificateNo.slice(0, 8)}...</code>
+                                                        </td>
+                                                        <td className="hidden px-4 py-4 text-gray-500 xl:table-cell lg:px-6 text-xs">
+                                                            {fmtDateTime(item.issuedAt)}
+                                                        </td>
+                                                        <td className="px-4 py-4 lg:px-6">
+                                                            <div className="flex flex-wrap gap-2">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => handleVerifyCertificate(item.verificationCode)}
+                                                                    disabled={verifyingCode === item.verificationCode}
+                                                                    className="whitespace-nowrap text-xs sm:text-sm"
+                                                                >
+                                                                    {verifyingCode === item.verificationCode
+                                                                        ? "Verifying..."
+                                                                        : "Verify"}
+                                                                </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() =>
+                                                                        handleCopyVerificationCode(item.verificationCode)
+                                                                    }
+                                                                    className="whitespace-nowrap text-xs sm:text-sm"
+                                                                >
+                                                                    Copy
+                                                                </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        void downloadBrandedCertificatePdf(
+                                                                            item,
+                                                                            certificateAssets
+                                                                        );
+                                                                    }}
+                                                                    className="whitespace-nowrap text-xs sm:text-sm"
+                                                                >
+                                                                    PDF
+                                                                </Button>
+                                                                <Link to={`/certificates/verify?code=${encodeURIComponent(item.verificationCode || "")}`}>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="whitespace-nowrap text-xs sm:text-sm"
+                                                                    >
+                                                                        Public
+                                                                    </Button>
+                                                                </Link>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </ResponsiveTable>
+                                </>
                             )}
-                        </div>
-                    </>
-                )}
-            </div>
+                        </SectionCard>
+                    </PageContainer>
+                </>
+            )}
         </div>
     );
 }

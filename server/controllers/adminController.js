@@ -7,6 +7,10 @@ import crypto from "node:crypto";
 import EventAttendance from "../models/EventAttendance.js";
 import RoleChangeRequest from "../models/RoleChangeRequest.js";
 import AdminAuditLog from "../models/AdminAuditLog.js";
+import {
+  notifyAccountFreeze,
+  notifyAccountUnfrozen,
+} from "../services/notificationService.js";
 
 const ATTENDANCE_STATUSES = ["registered", "participated", "completed"];
 
@@ -203,6 +207,20 @@ export async function setStudentFreezeState(req, res) {
     user.frozenAt = frozen ? new Date() : null;
     user.frozenReason = frozen ? reason.slice(0, 300) : "";
     await user.save();
+
+    // Send freeze/unfreeze notification to student
+    try {
+      if (frozen) {
+        await notifyAccountFreeze(String(user._id), reason || "");
+      } else {
+        await notifyAccountUnfrozen(
+          String(user._id),
+          "Your account has been reactivated",
+        );
+      }
+    } catch (notifErr) {
+      console.error("Error sending freeze notification:", notifErr);
+    }
 
     await logAdminAction(
       req,

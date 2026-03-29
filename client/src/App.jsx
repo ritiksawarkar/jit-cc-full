@@ -6,6 +6,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import StudentDashboard from "./pages/StudentDashboard";
+import NotificationsPage from "./pages/NotificationsPage";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
 import CertificateVerifyPage from "./pages/CertificateVerifyPage";
 import { useCompilerStore } from "./store/useCompilerStore";
@@ -40,6 +41,15 @@ export default function App() {
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
       <Route path="/certificates/verify" element={<CertificateVerifyPage />} />
+
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute allowedRoles={["student", "admin"]}>
+            <NotificationsPage />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/dashboard"

@@ -3,7 +3,7 @@
  * Add more as you like from /languages endpoint.
  */
 // languageMap.js
-export const LANGUAGES = [
+const RAW_LANGUAGES = [
   { id: 45, label: "Assembly (NASM 2.14.02)" },
   { id: 46, label: "Bash (5.0.0)" },
   { id: 47, label: "Basic (FBC 1.07.1)" },
@@ -75,6 +75,72 @@ export const LANGUAGES = [
   { id: 101, label: "TypeScript (5.6.2)" },
   { id: 84, label: "Visual Basic.Net (vbnc 0.0.0.5943)" },
 ];
+
+export const DEFAULT_LANGUAGE_ICON =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2311162a'/%3E%3Cpath d='M18 17h10l10 15 8-11h10L42 40l8 12H40L30 37l-8 11H12l13-18-7-13z' fill='%23dbe4ff'/%3E%3C/svg%3E";
+
+const LANGUAGE_ICON_BY_KEYWORD = {
+  assembly: "https://cdn.simpleicons.org/assemblyscript",
+  bash: "https://cdn.simpleicons.org/gnubash",
+  basic: "https://cdn.simpleicons.org/freebasic",
+  c: "https://cdn.simpleicons.org/c",
+  "c++": "https://cdn.simpleicons.org/cplusplus",
+  clojure: "https://cdn.simpleicons.org/clojure",
+  "c#": "https://cdn.simpleicons.org/csharp",
+  cobol: "https://cdn.simpleicons.org/cobol",
+  "common lisp": "https://cdn.simpleicons.org/commonlisp",
+  dart: "https://cdn.simpleicons.org/dart",
+  d: "https://cdn.simpleicons.org/d",
+  elixir: "https://cdn.simpleicons.org/elixir",
+  erlang: "https://cdn.simpleicons.org/erlang",
+  executable: "https://cdn.simpleicons.org/linux",
+  "f#": "https://cdn.simpleicons.org/fsharp",
+  fortran: "https://cdn.simpleicons.org/fortran",
+  go: "https://cdn.simpleicons.org/go",
+  groovy: "https://cdn.simpleicons.org/groovy",
+  haskell: "https://cdn.simpleicons.org/haskell",
+  javafx: "https://cdn.simpleicons.org/openjdk",
+  java: "https://cdn.simpleicons.org/openjdk",
+  javascript: "https://cdn.simpleicons.org/javascript",
+  kotlin: "https://cdn.simpleicons.org/kotlin",
+  lua: "https://cdn.simpleicons.org/lua",
+  "multi-file program": "https://cdn.simpleicons.org/files",
+  "objective-c": "https://cdn.simpleicons.org/objectivec",
+  ocaml: "https://cdn.simpleicons.org/ocaml",
+  octave: "https://cdn.simpleicons.org/gnuoctave",
+  pascal: "https://cdn.simpleicons.org/pascal",
+  perl: "https://cdn.simpleicons.org/perl",
+  php: "https://cdn.simpleicons.org/php",
+  "plain text": "https://cdn.simpleicons.org/readthedocs",
+  prolog: "https://cdn.simpleicons.org/prolog",
+  python: "https://cdn.simpleicons.org/python",
+  r: "https://cdn.simpleicons.org/r",
+  ruby: "https://cdn.simpleicons.org/ruby",
+  rust: "https://cdn.simpleicons.org/rust",
+  scala: "https://cdn.simpleicons.org/scala",
+  sql: "https://cdn.simpleicons.org/sqlite",
+  swift: "https://cdn.simpleicons.org/swift",
+  typescript: "https://cdn.simpleicons.org/typescript",
+  "visual basic.net": "https://cdn.simpleicons.org/visualbasic",
+};
+
+function getLanguageKeyword(label) {
+  if (!label) return "";
+  const base = String(label).split("(")[0].trim().toLowerCase();
+  if (base.startsWith("c++")) return "c++";
+  if (base.startsWith("c#")) return "c#";
+  if (base === "d") return "d";
+  if (base === "r") return "r";
+  return base;
+}
+
+export const LANGUAGES = RAW_LANGUAGES.map((language) => {
+  const keyword = getLanguageKeyword(language.label);
+  return {
+    ...language,
+    icon: LANGUAGE_ICON_BY_KEYWORD[keyword] || DEFAULT_LANGUAGE_ICON,
+  };
+});
 
 export const THEMES = [
   { id: "vs-dark", label: "VS Dark" },

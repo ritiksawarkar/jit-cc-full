@@ -46,6 +46,7 @@ export default function EditorPanel({ compact = false } = {}) {
   const monaco = useMonaco();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
+  const [aiMode, setAiMode] = useState("code-only");
   const [isLoading, setIsLoading] = useState(false);
 
   // --- Complete language mapping from Judge0 IDs to Monaco ---
@@ -507,50 +508,82 @@ export default function EditorPanel({ compact = false } = {}) {
 
     setIsLoading(true);
     try {
-      const resp = await getAISuggestions(promptText);
-      // Expecting resp.suggestions or resp.result (be defensive)
-      let suggestion = resp?.suggestions || resp?.result || resp?.text || resp?.output || "";
-      // Normalize common shapes (array/object) into a string
-      if (Array.isArray(suggestion)) {
-        suggestion = suggestion.join('\n\n');
-      } else if (typeof suggestion === 'object' && suggestion !== null) {
-        // Try to pick likely fields or stringify
-        suggestion = suggestion.text || suggestion.content || JSON.stringify(suggestion, null, 2);
-      }
-      suggestion = String(suggestion || "");
+      const resp = await getAISuggestions(promptText, {
+        mode: aiMode,
+        language: monacoLang,
+      });
+      const responseCode = String(resp?.codeBlock || "").trim();
+      const responseExplanation = String(
+        resp?.explanation || resp?.suggestions || "",
+      ).trim();
 
-      if (!suggestion.trim()) {
+      if (aiMode === "code-only") {
+        const finalCode =
+          responseCode || String(resp?.suggestions || resp?.result || "").trim();
+        if (!finalCode) {
+          alert("AI returned no code.");
+          return;
+        }
+        try {
+          const state = useCompilerStore.getState();
+          const activeId = state.activeTabId;
+          setSource(finalCode);
+          if (activeId && state.updateTabContent) {
+            state.updateTabContent(activeId, finalCode);
+          }
+        } catch (e) {
+          console.error("Failed to replace editor content with AI code:", e);
+          setSource(finalCode);
+        }
+        return;
+      }
+
+      const explanationToInsert = responseExplanation;
+      const codeToInsert = responseCode;
+      if (!explanationToInsert && !codeToInsert) {
         alert("AI returned no suggestions.");
         return;
       }
 
-      // Insert suggestion into current source — append by default
       try {
         const state = useCompilerStore.getState();
         const activeId = state.activeTabId;
-        // Ensure existing source is string
         const currSource = String(state.source ?? "");
-        const newContent = currSource ? `${currSource}\n\n// AI Suggestion:\n${suggestion}` : suggestion;
-        // Set store source (always a string)
+        const segments = [];
+        if (explanationToInsert) {
+          segments.push(`// AI Explanation:\n${explanationToInsert}`);
+        }
+        if (codeToInsert) {
+          segments.push(codeToInsert);
+        }
+        const block = segments.join("\n\n");
+        const newContent = currSource ? `${currSource}\n\n${block}` : block;
         try {
-          setSource(String(newContent));
+          setSource(newContent);
         } catch (e) {
           console.error("Failed to set source safely:", e);
         }
 
-        // Update active tab content safely
         if (activeId && state.updateTabContent) {
           try {
-            const tabContent = String((state.tabs.find((t) => t.id === activeId)?.content) ?? "");
-            state.updateTabContent(activeId, `${tabContent}\n\n// AI Suggestion:\n${suggestion}`);
+            const tabContent = String(
+              state.tabs.find((t) => t.id === activeId)?.content ?? "",
+            );
+            const nextTabContent = tabContent
+              ? `${tabContent}\n\n${block}`
+              : block;
+            state.updateTabContent(activeId, nextTabContent);
           } catch (e) {
             console.error("Failed to update tab content safely:", e);
           }
         }
       } catch (e) {
         console.error("Failed to insert AI suggestion into editor/state:", e);
-        // As a safe fallback set source to string suggestion
-        try { setSource(String(suggestion)); } catch (err) { console.error(err); }
+        try {
+          setSource(codeToInsert || explanationToInsert);
+        } catch (err) {
+          console.error(err);
+        }
       }
     } catch (err) {
       // Handle axios cancellation (or other cancellation shapes) gracefully
@@ -736,8 +769,8 @@ export default function EditorPanel({ compact = false } = {}) {
                     }
                   }}
                   className={`group inline-flex items-center rounded-t-lg border px-4 py-2 shadow-inner transition-colors ${isActive
-                      ? "border-white/10 border-b-0 bg-black/60 text-cyan-100"
-                      : "border-transparent bg-black/30 text-white/60 hover:border-white/10 hover:bg-black/50 hover:text-cyan-100"
+                    ? "border-white/10 border-b-0 bg-black/60 text-cyan-100"
+                    : "border-transparent bg-black/30 text-white/60 hover:border-white/10 hover:bg-black/50 hover:text-cyan-100"
                     }`}
                 >
                   {editingTabId === tab.id ? (
@@ -762,8 +795,8 @@ export default function EditorPanel({ compact = false } = {}) {
                   <button
                     type="button"
                     className={`ml-3 flex h-6 w-6 items-center justify-center rounded text-white/40 transition ${menuOpen
-                        ? "bg-white/10 text-cyan-200"
-                        : "hover:bg-white/10 hover:text-cyan-100"
+                      ? "bg-white/10 text-cyan-200"
+                      : "hover:bg-white/10 hover:text-cyan-100"
                       }`}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -837,8 +870,8 @@ export default function EditorPanel({ compact = false } = {}) {
                   type="button"
                   disabled={tabs.length <= 1}
                   className={`w-full rounded px-3 py-2 text-left text-sm transition ${tabs.length > 1
-                      ? "text-white/80 hover:bg-white/10 hover:text-cyan-100"
-                      : "cursor-not-allowed text-white/25"
+                    ? "text-white/80 hover:bg-white/10 hover:text-cyan-100"
+                    : "cursor-not-allowed text-white/25"
                     }`}
                   onClick={() => {
                     if (tabs.length > 1) {
@@ -852,8 +885,8 @@ export default function EditorPanel({ compact = false } = {}) {
                   type="button"
                   disabled={tabs.length <= 1}
                   className={`w-full rounded px-3 py-2 text-left text-sm transition ${tabs.length > 1
-                      ? "text-white/80 hover:bg-white/10 hover:text-cyan-100"
-                      : "cursor-not-allowed text-white/25"
+                    ? "text-white/80 hover:bg-white/10 hover:text-cyan-100"
+                    : "cursor-not-allowed text-white/25"
                     }`}
                   onClick={() => {
                     if (tabs.length > 1) {
@@ -976,6 +1009,34 @@ export default function EditorPanel({ compact = false } = {}) {
 
               {/* Content */}
               <div className="p-4 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-cyan-300 uppercase tracking-wider">
+                    MODE
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAiMode("code-only")}
+                      className={`rounded-lg border px-3 py-2 text-xs font-semibold tracking-wide transition-colors ${aiMode === "code-only"
+                          ? "border-cyan-400/70 bg-cyan-500/20 text-cyan-100"
+                          : "border-white/15 bg-gray-800/70 text-white/70 hover:bg-gray-700/70"
+                        }`}
+                    >
+                      CODE ONLY
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAiMode("with-explanation")}
+                      className={`rounded-lg border px-3 py-2 text-xs font-semibold tracking-wide transition-colors ${aiMode === "with-explanation"
+                          ? "border-cyan-400/70 bg-cyan-500/20 text-cyan-100"
+                          : "border-white/15 bg-gray-800/70 text-white/70 hover:bg-gray-700/70"
+                        }`}
+                    >
+                      EXPLAIN
+                    </button>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-cyan-300 uppercase tracking-wider">
                     PROMPT ENGINE

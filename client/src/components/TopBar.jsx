@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from "react";
 import { useCompilerStore } from "../store/useCompilerStore";
 import { motion } from "framer-motion";
 import RunButtons from "./RunButtons";
-import { LANGUAGES } from "../lib/languageMap";
-import { Code2, PanelLeft } from "lucide-react";
+import { DEFAULT_LANGUAGE_ICON, LANGUAGES } from "../lib/languageMap";
+import { Check, ChevronDown, Code2, PanelLeft } from "lucide-react";
 
 export default function TopBar({ onToggleExplorer }) {
   const { languageId, setLanguageId, theme, setTheme, setSource, currentUser, tabs, selectTab, goToMatch, setSearchQuery: setStoreSearchQuery } =
@@ -13,7 +13,9 @@ export default function TopBar({ onToggleExplorer }) {
   const [scope, setScope] = useState("files"); // files | code
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [isLanguageOpen, setIsLanguageOpen] = useState(false);
   const searchRef = useRef(null);
+  const languageRef = useRef(null);
   const userInitials = currentUser?.name
     ? currentUser.name
       .split(" ")
@@ -161,13 +163,12 @@ int main() {
   writeln('Hello World');
 end.`,
   };
+  const selectedLanguage =
+    LANGUAGES.find((lang) => lang.id === languageId) || LANGUAGES[0];
 
-
-  const handleLanguageChange = (e) => {
-    const newLanguageId = Number(e.target.value);
-    // Only change the selected language here. Tab creation and source population
-    // are handled by the EditorPanel/store to avoid conflicting rapid updates.
-    setLanguageId(newLanguageId);
+  const handleLanguageSelect = (newLanguageId) => {
+    setLanguageId(Number(newLanguageId));
+    setIsLanguageOpen(false);
   };
 
   // Search helpers (scope-aware)
@@ -266,20 +267,24 @@ end.`,
       if (searchRef.current && !searchRef.current.contains(ev.target)) {
         setIsOpen(false);
       }
+      if (languageRef.current && !languageRef.current.contains(ev.target)) {
+        setIsLanguageOpen(false);
+      }
     };
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
   return (
-    <div className="sticky top-0 z-50 px-2 pt-2 sm:px-3 sm:pt-3">
-      <div className="rounded-2xl border border-white/10 bg-black/55 px-3 py-2.5 backdrop-blur-xl sm:px-4 sm:py-3">
-        <div className="flex flex-wrap items-start justify-between gap-3 lg:flex-nowrap lg:items-center">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+    <div className="sticky top-0 z-50 bg-gray-950 pl-1 pr-1 pt-1.5 sm:pl-2 sm:pr-1.5 sm:pt-2 md:pl-3 md:pr-2 md:pt-3 lg:pl-2 lg:pr-1.5 lg:pt-2">
+      <div className="rounded-xl border border-white/10 bg-gradient-to-r from-black/60 via-black/40 to-black/60 pl-2 pr-1.5 py-2 backdrop-blur-lg sm:pl-3 sm:pr-2 sm:py-2 md:pl-4 md:pr-3 md:py-3 lg:py-3 shadow-lg">
+        <div className="flex flex-wrap items-center justify-between gap-2 lg:flex-nowrap lg:justify-start">
+          {/* Left section: Logo and branding */}
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5 lg:gap-3">
             <button
               type="button"
               onClick={onToggleExplorer}
-              className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-white/85 lg:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-white/85 transition-colors hover:bg-white/10 hover:text-white lg:hidden"
               aria-label="Toggle file explorer"
             >
               <PanelLeft size={18} />
@@ -288,49 +293,56 @@ end.`,
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 120 }}
-              className="rounded-xl bg-white/10 p-2"
+              className="rounded-lg bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 p-2"
             >
               <Code2 className="text-indigo-300" size={24} />
             </motion.div>
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold tracking-wide text-white sm:text-base lg:text-lg">
-                Online Code Compiler
+            <div className="flex min-w-0 flex-col justify-center leading-tight">
+              <div className="truncate text-sm font-bold tracking-wide text-white sm:text-base lg:text-lg">
+                JIT Compiler
               </div>
+              <div className="mt-0.5 hidden text-xs text-white/60 sm:block">Online IDE</div>
             </div>
           </div>
 
-          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:gap-3 lg:w-auto lg:flex-nowrap">
-            {/* user area intentionally hidden (no guest message, no name/email/logo) */}
-            <div className="hidden sm:block" aria-hidden="true" />
-
-            <div className="relative w-full min-w-0 sm:w-auto" ref={searchRef}>
-              <div className="flex items-center gap-2">
-                <div className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/80">
-                  <select
-                    value={scope}
-                    onChange={(e) => setScope(e.target.value)}
-                    className="bg-transparent text-white/80 outline-none relative z-50"
-                    aria-label="Search scope"
-                  >
-                    <option value="files" style={{ color: '#000' }}>Files</option>
-                    <option value="code" style={{ color: '#000' }}>Code</option>
-                  </select>
-                </div>
+          {/* Right section: Search, Language, Run buttons */}
+          <div className="flex w-full flex-wrap items-center justify-end gap-1.5 sm:gap-2 lg:ml-2 lg:w-auto lg:flex-nowrap lg:gap-3">
+            {/* Search box - hidden on small screens */}
+            <div className="relative hidden min-w-0 md:block lg:min-w-[280px]" ref={searchRef}>
+              <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 transition-colors focus-within:border-cyan-500/50 focus-within:bg-white/10">
+                <select
+                  value={scope}
+                  onChange={(e) => setScope(e.target.value)}
+                  className="bg-transparent text-xs font-semibold leading-none text-white/70 outline-none"
+                  aria-label="Search scope"
+                >
+                  <option value="files" style={{ color: "#000" }}>
+                    Files
+                  </option>
+                  <option value="code" style={{ color: "#000" }}>
+                    Code
+                  </option>
+                </select>
+                <span className="h-4 w-px bg-white/20" />
                 <input
                   aria-label="Search"
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
-                    try { setStoreSearchQuery(e.target.value); } catch { }
+                    try {
+                      setStoreSearchQuery(e.target.value);
+                    } catch { }
                   }}
                   onKeyDown={handleKeyDown}
                   onFocus={() => setIsOpen(suggestions.length > 0)}
-                  placeholder={scope === "files" ? "Search open files..." : "Search code in open files..."}
-                  className="hidden md:block w-full max-w-xs rounded-lg border border-white/15 bg-black/35 px-3 py-2 text-sm text-white outline-none placeholder:text-white/50 focus:border-cyan-400/60 lg:w-72"
+                  placeholder={
+                    scope === "files" ? "Search files..." : "Search code..."
+                  }
+                  className="flex-1 bg-transparent text-sm leading-none text-white outline-none placeholder:text-white/50"
                 />
               </div>
               {isOpen && (
-                <ul className="absolute right-0 z-50 mt-2 max-h-60 w-[min(92vw,24rem)] overflow-auto rounded-lg border border-white/10 bg-black/90 shadow-2xl">
+                <ul className="absolute right-0 z-50 mt-2 max-h-64 w-[min(92vw,28rem)] overflow-auto rounded-lg border border-white/10 bg-black/95 shadow-2xl">
                   {suggestions.map((s, idx) => {
                     if (s.type === "language") {
                       const item = s.item;
@@ -339,7 +351,9 @@ end.`,
                           key={`lang-${item.id}`}
                           onMouseEnter={() => setActiveIndex(idx)}
                           onClick={() => chooseSuggestion(s)}
-                          className={`px-3 py-2 text-sm cursor-pointer hover:bg-white/5 ${idx === activeIndex ? "bg-white/5 text-cyan-200" : "text-white/70"
+                          className={`px-4 py-2 text-sm cursor-pointer transition-colors ${idx === activeIndex
+                            ? "bg-cyan-500/20 text-cyan-200"
+                            : "text-white/70 hover:bg-white/5"
                             }`}
                         >
                           {item.label}
@@ -353,7 +367,9 @@ end.`,
                           key={`file-${f.id}`}
                           onMouseEnter={() => setActiveIndex(idx)}
                           onClick={() => chooseSuggestion(s)}
-                          className={`px-3 py-2 text-sm cursor-pointer hover:bg-white/5 ${idx === activeIndex ? "bg-white/5 text-cyan-200" : "text-white/70"
+                          className={`px-4 py-2 text-sm cursor-pointer transition-colors ${idx === activeIndex
+                            ? "bg-cyan-500/20 text-cyan-200"
+                            : "text-white/70 hover:bg-white/5"
                             }`}
                         >
                           <div className="font-semibold">{f.name}</div>
@@ -368,11 +384,17 @@ end.`,
                           key={`code-${idx}-${r.lineNumber}`}
                           onMouseEnter={() => setActiveIndex(idx)}
                           onClick={() => chooseSuggestion(s)}
-                          className={`px-3 py-2 text-sm cursor-pointer hover:bg-white/5 ${idx === activeIndex ? "bg-white/5 text-cyan-200" : "text-white/70"
+                          className={`px-4 py-2 text-sm cursor-pointer transition-colors ${idx === activeIndex
+                            ? "bg-cyan-500/20 text-cyan-200"
+                            : "text-white/70 hover:bg-white/5"
                             }`}
                         >
-                          <div className="font-semibold">{r.tab.name} — line {r.lineNumber}</div>
-                          <div className="text-xs text-white/50 font-mono truncate">{r.snippet.trim()}</div>
+                          <div className="font-semibold">
+                            {r.tab.name} — line {r.lineNumber}
+                          </div>
+                          <div className="text-xs text-white/50 font-mono truncate">
+                            {r.snippet.trim()}
+                          </div>
                         </li>
                       );
                     }
@@ -382,22 +404,72 @@ end.`,
               )}
             </div>
 
-            {/* Timer moved to InputPanel */}
+            {/* Language selector */}
+            <div className="relative w-48 sm:w-56 lg:w-72" ref={languageRef}>
+              <button
+                type="button"
+                onClick={() => setIsLanguageOpen((prev) => !prev)}
+                className="ui-control flex w-full items-center justify-between gap-2 bg-black/35 text-left hover:bg-black/50 transition-colors"
+                aria-haspopup="listbox"
+                aria-expanded={isLanguageOpen}
+                aria-label="Select language and version"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <img
+                    src={selectedLanguage?.icon || DEFAULT_LANGUAGE_ICON}
+                    alt=""
+                    className="h-4 w-4 shrink-0 rounded-sm"
+                    onError={(e) => {
+                      e.currentTarget.src = DEFAULT_LANGUAGE_ICON;
+                    }}
+                  />
+                  <span className="truncate text-left text-sm font-medium leading-none">
+                    {selectedLanguage?.label}
+                  </span>
+                </span>
+                <ChevronDown
+                  size={15}
+                  className={`shrink-0 transition-transform ${isLanguageOpen ? "rotate-180" : ""
+                    }`}
+                />
+              </button>
 
-            <select
-              className="ui-control w-32 bg-black/35 sm:w-40"
-              value={languageId}
-              onChange={handleLanguageChange}
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l.id} value={l.id} style={{ color: '#000' }}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
+              {isLanguageOpen && (
+                <ul
+                  className="absolute right-0 z-50 mt-2 max-h-72 w-[min(92vw,28rem)] overflow-auto rounded-lg border border-white/10 bg-black/95 p-2 shadow-2xl"
+                  role="listbox"
+                  aria-label="Languages"
+                >
+                  {LANGUAGES.map((language) => (
+                    <li key={language.id} role="option" aria-selected={language.id === languageId}>
+                      <button
+                        type="button"
+                        onClick={() => handleLanguageSelect(language.id)}
+                        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${language.id === languageId
+                          ? "bg-cyan-500/20 text-cyan-200"
+                          : "text-white/70 hover:bg-white/10"
+                          }`}
+                      >
+                        <img
+                          src={language.icon || DEFAULT_LANGUAGE_ICON}
+                          alt=""
+                          className="h-4 w-4 shrink-0 rounded-sm"
+                          onError={(e) => {
+                            e.currentTarget.src = DEFAULT_LANGUAGE_ICON;
+                          }}
+                        />
+                        <span className="flex-1 truncate">{language.label}</span>
+                        {language.id === languageId ? (
+                          <Check size={14} className="shrink-0" />
+                        ) : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
-            {/* Theme selector removed from TopBar (settings still control themes) */}
-
+            {/* Run buttons (includes notification badge) */}
             <RunButtons />
           </div>
         </div>

@@ -450,9 +450,14 @@ export async function requestRoleChange(payload) {
 }
 
 // AI function with improved response for GitHub Copilot-like behavior
-export async function getAISuggestions(prompt) {
+export async function getAISuggestions(prompt, options = {}) {
   try {
-    const res = await API.post("/api/ai-suggestions", { code: prompt });
+    const payload = {
+      code: prompt,
+      ...(options?.mode ? { mode: options.mode } : {}),
+      ...(options?.language ? { language: options.language } : {}),
+    };
+    const res = await API.post("/api/ai-suggestions", payload);
     return res.data;
   } catch (err) {
     // Normalize axios cancelation / error objects so caller gets a clear Error
@@ -485,7 +490,11 @@ export async function explainError({
   if (context) promptParts.push(`Context:\n${context}`);
   const prompt = promptParts.join("\n\n");
   try {
-    const res = await API.post("/api/ai-suggestions", { code: prompt });
+    const res = await API.post("/api/ai-suggestions", {
+      code: prompt,
+      mode: "with-explanation",
+      language: String(language || ""),
+    });
     return res.data;
   } catch (err) {
     const message =
@@ -631,5 +640,90 @@ export async function resolveDependencies({
 
 export async function searchFiles(query, maxResults = 50) {
   const res = await API.post("/api/search", { query, maxResults });
+  return res.data;
+}
+
+// ========== NOTIFICATION ENDPOINTS ==========
+
+/**
+ * Get all notifications for current student
+ */
+export async function getMyNotifications(
+  type = null,
+  isRead = null,
+  priority = null,
+) {
+  const params = new URLSearchParams();
+  if (type) params.append("type", type);
+  if (isRead !== null) params.append("isRead", String(isRead));
+  if (priority) params.append("priority", priority);
+
+  const res = await API.get(
+    `/api/notifications${params.toString() ? "?" + params.toString() : ""}`,
+  );
+  return res.data;
+}
+
+/**
+ * Get notification summary (badge counts)
+ */
+export async function getNotificationSummary() {
+  const res = await API.get("/api/notifications/summary");
+  return res.data;
+}
+
+/**
+ * Mark single notification as read
+ */
+export async function markNotificationAsRead(notificationId) {
+  const res = await API.put(`/api/notifications/${notificationId}/read`);
+  return res.data;
+}
+
+/**
+ * Mark multiple notifications as read
+ */
+export async function markAllNotificationsAsRead(notificationIds) {
+  const res = await API.put("/api/notifications/read-all", { notificationIds });
+  return res.data;
+}
+
+/**
+ * Archive a notification
+ */
+export async function archiveNotification(notificationId) {
+  const res = await API.put(`/api/notifications/${notificationId}/archive`);
+  return res.data;
+}
+
+/**
+ * Archive all read notifications
+ */
+export async function archiveAllReadNotifications() {
+  const res = await API.put("/api/notifications/archive-all");
+  return res.data;
+}
+
+/**
+ * Delete a notification
+ */
+export async function deleteNotification(notificationId) {
+  const res = await API.delete(`/api/notifications/${notificationId}`);
+  return res.data;
+}
+
+/**
+ * Pin a notification
+ */
+export async function pinNotification(notificationId) {
+  const res = await API.put(`/api/notifications/${notificationId}/pin`);
+  return res.data;
+}
+
+/**
+ * Admin: Create and send notifications
+ */
+export async function createNotification(payload) {
+  const res = await API.post("/api/notifications/create", payload);
   return res.data;
 }

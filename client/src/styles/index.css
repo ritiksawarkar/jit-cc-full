@@ -17,6 +17,7 @@
 [data-theme="light"] svg {
   stroke-width: 1.5 !important;
 }
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -27,11 +28,11 @@
   }
 
   .ui-header {
-    @apply border-b border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/65 sm:px-4 sm:py-3;
+    @apply border-b border-white/10 px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-white/65 sm:px-3 sm:py-2;
   }
 
   .ui-tab {
-    @apply min-h-10 rounded-md bg-white/5 px-3 py-2 text-sm font-medium text-white/75 transition hover:bg-white/10;
+    @apply min-h-9 rounded-md bg-white/5 px-2.5 py-1.5 text-sm font-medium text-white/75 transition hover:bg-white/10;
   }
 
   .ui-tab-active {
@@ -39,33 +40,118 @@
   }
 
   .ui-control {
-    @apply min-h-10 rounded-lg border border-white/15 bg-black/35 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/60;
+    @apply min-h-9 rounded-lg border border-white/15 bg-black/35 px-2.5 py-1.5 text-sm text-white outline-none transition focus:border-cyan-400/60;
   }
 
   .ui-mono-panel {
-    @apply rounded-xl border border-white/10 bg-black/50 p-3 font-mono text-sm;
+    @apply rounded-xl border border-white/10 bg-black/50 p-2.5 font-mono text-sm;
   }
 }
 
 /* Reusable glass panel */
-.glass { @apply bg-glass backdrop-blur-xl border border-white/10 rounded-2xl; }
-
-/* Custom scrollbars */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #6d28d9 0%, #2563eb 100%);
-  border-radius: 8px;
+.glass {
+  @apply bg-glass backdrop-blur-xl border border-white/10 rounded-2xl;
 }
-::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); }
+
+/* Global scrollbar theme (match slim editor-style feel across sections) */
+:root {
+  --app-scrollbar-size: 6px;
+  --app-scrollbar-thumb: rgba(34, 211, 238, 0.58);
+  --app-scrollbar-thumb-hover: rgba(103, 232, 249, 0.85);
+  --app-scrollbar-track: rgba(8, 47, 73, 0.28);
+}
+
+[data-theme="light"] {
+  --app-scrollbar-thumb: rgba(6, 182, 212, 0.6);
+  --app-scrollbar-thumb-hover: rgba(8, 145, 178, 0.82);
+  --app-scrollbar-track: rgba(186, 230, 253, 0.55);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+*::-webkit-scrollbar {
+  width: var(--app-scrollbar-size);
+  height: var(--app-scrollbar-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 9999px;
+  transition: background-color 220ms ease, opacity 220ms ease;
+  opacity: 0;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+  opacity: 0;
+  transition: background-color 220ms ease, box-shadow 220ms ease, opacity 220ms ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--app-scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+/* Show scrollbar on interaction, then smoothly fade out when inactive */
+*:hover,
+*:focus-within,
+*:active {
+  scrollbar-color: var(--app-scrollbar-thumb) var(--app-scrollbar-track);
+}
+
+*:hover::-webkit-scrollbar-track,
+*:focus-within::-webkit-scrollbar-track,
+*:active::-webkit-scrollbar-track {
+  background: var(--app-scrollbar-track);
+  opacity: 1;
+}
+
+*:hover::-webkit-scrollbar-thumb,
+*:focus-within::-webkit-scrollbar-thumb,
+*:active::-webkit-scrollbar-thumb {
+  background: var(--app-scrollbar-thumb);
+  background-clip: content-box;
+  opacity: 1;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.28);
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
 
 /* Typing caret */
-.typing-caret { position: relative; }
+.typing-caret {
+  position: relative;
+}
+
 .typing-caret::after {
-  content: ''; position: absolute; width: 8px; height: 18px;
-  background: #a5b4fc; margin-left: 6px; top: 2px;
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 18px;
+  background: #a5b4fc;
+  margin-left: 6px;
+  top: 2px;
   animation: blink 1s step-end infinite;
 }
-@keyframes blink { 50% { opacity: 0; } }
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 /* Custom dropdown styling */
 .dropdown {
   background-color: transparent;
@@ -77,7 +163,8 @@
 }
 
 .dropdown:hover {
-  background-color: #ffffff1a; /* Highlight on hover */
+  background-color: #ffffff1a;
+  /* Highlight on hover */
 }
 
 .dropdown option {
@@ -89,6 +176,7 @@
   background-color: #1a1a1a;
   color: #2913a6;
 }
+
 /* Make dropdowns transparent and style on hover */
 .dropdown {
   background-color: transparent;
@@ -100,7 +188,8 @@
 }
 
 .dropdown:hover {
-  background-color: #ffffff1a; /* Light background when hovering */
+  background-color: #ffffff1a;
+  /* Light background when hovering */
 }
 
 .dropdown option {
@@ -123,9 +212,11 @@
 .dark .glass {
   @apply bg-black/70 border-white/20;
 }
+
 [data-theme="hc-black"] body,
 .dark body {
-  background-color: #000; /* ensure deep background */
+  background-color: #000;
+  /* ensure deep background */
   color: #e6f7ff;
 }
 
@@ -140,12 +231,18 @@
 }
 
 /* Generic adjustments to ensure headings and panel text adapt */
-[data-theme="hc-black"] h1, [data-theme="hc-black"] h2, [data-theme="hc-black"] h3,
-[data-theme="vs-dark"] h1, [data-theme="vs-dark"] h2, [data-theme="vs-dark"] h3 {
+[data-theme="hc-black"] h1,
+[data-theme="hc-black"] h2,
+[data-theme="hc-black"] h3,
+[data-theme="vs-dark"] h1,
+[data-theme="vs-dark"] h2,
+[data-theme="vs-dark"] h3 {
   color: #e6f7ff;
 }
 
-[data-theme="light"] h1, [data-theme="light"] h2, [data-theme="light"] h3 {
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3 {
   color: #111827;
 }
 
@@ -168,12 +265,12 @@
 [data-theme="light"] .bg-gray-800 {
   background-color: #ffffff !important;
   color: #0f172a !important;
-  border-color: rgba(15,23,42,0.06) !important;
+  border-color: rgba(15, 23, 42, 0.06) !important;
 }
 
 [data-theme="light"] .glass {
-  background: rgba(255,255,255,0.85) !important;
-  border-color: rgba(15,23,42,0.06) !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(15, 23, 42, 0.06) !important;
 }
 
 /* Make white text dark in light mode where components used text-white */
@@ -188,10 +285,13 @@
 [data-theme="light"] .rounded-lg.border-white\/15,
 [data-theme="light"] .border-white\/15,
 [data-theme="light"] .border-white\/10 {
-  border-color: rgba(15,23,42,0.06) !important;
+  border-color: rgba(15, 23, 42, 0.06) !important;
 }
 
-[data-theme="light"] .bg-emerald-600\/80 { background-color: #059669 !important; color: #fff !important; }
+[data-theme="light"] .bg-emerald-600\/80 {
+  background-color: #059669 !important;
+  color: #fff !important;
+}
 
 /* Inputs and selects */
 [data-theme="light"] input,
@@ -199,7 +299,7 @@
 [data-theme="light"] textarea {
   background-color: #fff !important;
   color: #0f172a !important;
-  border-color: rgba(15,23,42,0.08) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
 }
 
 /* Ensure tab bar and tab labels match light theme */
@@ -207,7 +307,7 @@
 [data-theme="light"] .rounded-t-xl {
   background-color: #fff !important;
   color: #0f172a !important;
-  border-color: rgba(15,23,42,0.06) !important;
+  border-color: rgba(15, 23, 42, 0.06) !important;
 }
 
 /* Specific: TopBar container */
@@ -221,7 +321,7 @@
 [data-theme="light"] .relative.z-10.w-full.max-w-sm.rounded-2xl.border {
   background-color: #ffffff !important;
   color: #0f172a !important;
-  border-color: rgba(15,23,42,0.06) !important;
+  border-color: rgba(15, 23, 42, 0.06) !important;
 }
 
 /* Explorer list items */
@@ -231,13 +331,15 @@
 }
 
 /* Ensure icons inverted where necessary */
-[data-theme="light"] svg { filter: none !important; }
+[data-theme="light"] svg {
+  filter: none !important;
+}
 
 /* File Explorer specific light-mode overrides to ensure visibility */
 [data-theme="light"] .file-explorer {
   background-color: #ffffff !important;
   color: #0f172a !important;
-  border-right-color: rgba(15,23,42,0.06) !important;
+  border-right-color: rgba(15, 23, 42, 0.06) !important;
 }
 
 [data-theme="light"] .file-explorer .file-explorer-content {
@@ -261,7 +363,8 @@
 [data-theme="light"] .file-explorer .text-white\/70,
 [data-theme="light"] .file-explorer .text-white\/80,
 [data-theme="light"] .file-explorer .text-white\/50 {
-  color: #475569 !important; /* slate-600 */
+  color: #475569 !important;
+  /* slate-600 */
 }
 
 [data-theme="light"] .file-explorer .bg-black\/20,
@@ -273,7 +376,7 @@
 
 [data-theme="light"] .file-explorer .border-white\/10,
 [data-theme="light"] .file-explorer .border-white\/5 {
-  border-color: rgba(15,23,42,0.06) !important;
+  border-color: rgba(15, 23, 42, 0.06) !important;
 }
 
 [data-theme="light"] .file-explorer .group-hover\:opacity-100 {
@@ -281,7 +384,8 @@
 }
 
 /* Extra strong overrides for explorer visuals in light mode */
-[data-theme="light"] .file-explorer, [data-theme="light"] .file-explorer * {
+[data-theme="light"] .file-explorer,
+[data-theme="light"] .file-explorer * {
   color: #0f172a !important;
 }
 
@@ -298,35 +402,37 @@
 [data-theme="light"] .file-explorer .text-white\/80,
 [data-theme="light"] .file-explorer .text-white\/50,
 [data-theme="light"] .file-explorer .text-white {
-  color: #475569 !important; /* slate-600 */
+  color: #475569 !important;
+  /* slate-600 */
 }
 
 [data-theme="light"] .file-explorer .hover\:bg-white\/10:hover {
-  background-color: rgba(2,6,23,0.03) !important;
+  background-color: rgba(2, 6, 23, 0.03) !important;
 }
 
 [data-theme="light"] .file-explorer .border-white\/10,
 [data-theme="light"] .file-explorer .border-white\/5,
 [data-theme="light"] .file-explorer .border-white\/15,
 [data-theme="light"] .file-explorer .border-white\/20 {
-  border-color: rgba(15,23,42,0.08) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
 }
 
 /* Footer and context menu in light mode */
 [data-theme="light"] .fixed.bg-black\/90 {
   background-color: #ffffff !important;
   color: #0f172a !important;
-  border-color: rgba(15,23,42,0.08) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
 }
 
 [data-theme="light"] .file-explorer .p-1\.5:hover,
 [data-theme="light"] .file-explorer .p-1:hover {
-  background-color: rgba(2,6,23,0.03) !important;
+  background-color: rgba(2, 6, 23, 0.03) !important;
 }
 
 /* Ensure inputs and placeholders are visible */
 [data-theme="light"] .file-explorer input::placeholder {
-  color: #94a3b8 !important; /* slate-400 */
+  color: #94a3b8 !important;
+  /* slate-400 */
 }
 
 /* Catch-all overrides for common dark utility classes used across the app */
@@ -341,7 +447,7 @@
 }
 
 [data-theme="light"] [class*="border-white"] {
-  border-color: rgba(15,23,42,0.10) !important;
+  border-color: rgba(15, 23, 42, 0.10) !important;
 }
 
 [data-theme="light"] [class*="text-cyan"],
@@ -352,34 +458,35 @@
 
 [data-theme="light"] .shadow-2xl,
 [data-theme="light"] .shadow-lg {
-  box-shadow: 0 1px 6px rgba(2,6,23,0.04) !important;
+  box-shadow: 0 1px 6px rgba(2, 6, 23, 0.04) !important;
 }
 
 
 /* Header (TopBar) specific light-mode fixes: ensure container border, bg and outline are visible */
 [data-theme="light"] .sticky.top-0 .mx-3.mt-3.mb-2,
-[data-theme="light"] .sticky.top-0 > div[class*="mx-3"],
+[data-theme="light"] .sticky.top-0>div[class*="mx-3"],
 [data-theme="light"] .sticky.top-0 .mx-3 {
   background-color: #f8fafc !important;
   color: #0f172a !important;
-  border-color: rgba(15,23,42,0.12) !important;
-  box-shadow: 0 1px 0 rgba(15,23,42,0.04) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04) !important;
 }
 
 /* Make header outline/focus more visible */
 [data-theme="light"] .sticky.top-0:focus-within,
 [data-theme="light"] .sticky.top-0 .mx-3:focus-within {
-  outline: 2px solid rgba(59,130,246,0.18) !important;
+  outline: 2px solid rgba(59, 130, 246, 0.18) !important;
   outline-offset: 2px !important;
-  box-shadow: 0 4px 12px rgba(2,6,23,0.04) !important;
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.04) !important;
 }
 
 /* Global light-theme border & focus visibility fixes */
 [data-theme="light"] {
-  --lt-border: rgba(15,23,42,0.12);
-  --lt-border-strong: rgba(15,23,42,0.16);
+  --lt-border: rgba(15, 23, 42, 0.12);
+  --lt-border-strong: rgba(15, 23, 42, 0.16);
   --lt-panel-bg: #ffffff;
-  --lt-muted: #64748b; /* slate-500 */
+  --lt-muted: #64748b;
+  /* slate-500 */
 }
 
 /* Apply to any element with a Tailwind border utility in the light theme */
@@ -411,9 +518,10 @@
 
 /* Make focus states clearly visible in light mode */
 [data-theme="light"] :focus {
-  outline: 2px solid rgba(59,130,246,0.18) !important; /* blue-500-ish */
+  outline: 2px solid rgba(59, 130, 246, 0.18) !important;
+  /* blue-500-ish */
   outline-offset: 2px !important;
-  box-shadow: 0 0 0 4px rgba(59,130,246,0.08) !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.08) !important;
 }
 
 /* Specific: make header, topbar and tab borders visible */
@@ -446,5 +554,3 @@
 [data-theme="light"] .text-white\/80 {
   color: var(--lt-muted) !important;
 }
-
-

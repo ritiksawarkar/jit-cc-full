@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import CertificateTemplate from "../models/CertificateTemplate.js";
 import Certificate from "../models/Certificate.js";
 import AdminAuditLog from "../models/AdminAuditLog.js";
+import { notifyCertificateIssued } from "../services/notificationService.js";
 
 function toId(value) {
   return String(value || "").trim();
@@ -342,6 +343,20 @@ export async function issueEventCertificates(req, res) {
 
     if (ops.length) {
       await Certificate.bulkWrite(ops);
+    }
+
+    // Send certificate issued notifications to all students
+    try {
+      const issuedCerts = await Certificate.find({ eventId, status: "issued" })
+        .select("_id userId certificateNo")
+        .lean();
+
+      for (const cert of issuedCerts) {
+        await notifyCertificateIssued(String(cert.userId), cert, event.title);
+      }
+    } catch (notifErr) {
+      console.error("Error sending certificate notifications:", notifErr);
+      // Don't fail the response if notifications fail
     }
 
     await AdminAuditLog.create({

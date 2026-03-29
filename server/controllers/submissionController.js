@@ -5,6 +5,11 @@ import EventAttendance from "../models/EventAttendance.js";
 import Problem from "../models/Problem.js";
 import ProblemSelection from "../models/ProblemSelection.js";
 import Submission from "../models/Submission.js";
+import {
+  notifySubmissionPassed,
+  notifySubmissionFailed,
+  notifySubmissionError,
+} from "../services/notificationService.js";
 
 const HOST = process.env.JUDGE0_HOST;
 const KEY = process.env.JUDGE0_API_KEY;
@@ -538,6 +543,41 @@ export async function submitCode(req, res) {
         isCompetitive: Boolean(problem?.isCompetitive ?? true),
       },
     });
+
+    // Send notification to student based on submission result
+    try {
+      const score = evaluation.score?.earned || 0;
+      const passedCount = evaluation.score?.passedCount || 0;
+      const totalCount = evaluation.score?.totalCount || 0;
+
+      if (evaluation.status === "Accepted") {
+        // All tests passed
+        await notifySubmissionPassed(targetUserId, submission, score);
+      } else if (
+        evaluation.status === "Compilation Error" ||
+        evaluation.status === "Runtime Error"
+      ) {
+        // Code has errors
+        const errorMsg =
+          representative?.compileOutput ||
+          representative?.stderr ||
+          "Unknown error";
+        await notifySubmissionError(targetUserId, submission, errorMsg);
+      } else if (evaluation.status === "Partial Accepted" || passedCount > 0) {
+        // Some tests passed
+        const failedCount = totalCount - passedCount;
+        await notifySubmissionFailed(targetUserId, submission, failedCount);
+      } else if (
+        evaluation.status === "Wrong Answer" ||
+        evaluation.status === "Time Limit Exceeded"
+      ) {
+        // Tests failed
+        await notifySubmissionFailed(targetUserId, submission, totalCount);
+      }
+    } catch (notifErr) {
+      // Log notification error but don't fail the submission
+      console.error("Error sending submission notification:", notifErr);
+    }
 
     const canViewHidden = authenticatedRole === "admin";
     const submissionResponse = toSubmissionResponse(submission, {
