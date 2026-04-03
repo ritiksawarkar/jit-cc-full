@@ -23,7 +23,6 @@ import {
   Star,
   Save,
   AlertCircle,
-  CheckCircle,
   FolderPlus,
   FilePlus,
 } from "lucide-react";
@@ -105,6 +104,8 @@ const LANGUAGE_ICONS = {
   86: { icon: Code, label: "Clojure", ext: ".clj" },
 };
 
+const ROOT_FOLDER_ID = "root";
+
 export default function FileExplorer() {
   const {
     tabs,
@@ -132,22 +133,18 @@ export default function FileExplorer() {
   const [projectStructure, setProjectStructure] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPath, setCurrentPath] = useState([]);
+  const [selectedFolderId, setSelectedFolderId] = useState(ROOT_FOLDER_ID);
   const [selectedForRename, setSelectedForRename] = useState(null);
   const [renameValue, setRenameValue] = useState("");
   const [contextMenu, setContextMenu] = useState(null);
   const [draggedTab, setDraggedTab] = useState(null);
-  const [showCreateFile, setShowCreateFile] = useState(false);
-  const [newFileName, setNewFileName] = useState("");
-  const [showCreateFileHeader, setShowCreateFileHeader] = useState(false);
-  const [newFileNameHeader, setNewFileNameHeader] = useState("");
-  const [showCreateFolderHeader, setShowCreateFolderHeader] = useState(false);
-  const [newFolderNameHeader, setNewFolderNameHeader] = useState("");
-  const [creatingFileAt, setCreatingFileAt] = useState(null); // folder path or "" for root
-  const [creatingFileDraft, setCreatingFileDraft] = useState("");
+  const [creatingNode, setCreatingNode] = useState(null);
+  const [tempName, setTempName] = useState("");
+  const explorerRef = useRef(null);
   const creatingInputRef = useRef(null);
+  const creatingInputWrapRef = useRef(null);
   const renameInputRef = useRef(null);
   const contextMenuRef = useRef(null);
-  const fileInputRef = useRef(null);
   // attempt to use toast; if ToastProvider isn't mounted, fall back to window.alert
   let toast;
   try {
@@ -202,16 +199,31 @@ export default function FileExplorer() {
     }
   }, [selectedForRename]);
 
-  // Listen for keyboard shortcut to create new file (Ctrl+N)
   useEffect(() => {
-    const handleCreateNewFile = () => {
-      setShowCreateFile(true);
-      setNewFileName("");
+    if (!creatingNode) {
+      return;
+    }
+
+    const handlePointerDown = (event) => {
+      if (creatingInputWrapRef.current && !creatingInputWrapRef.current.contains(event.target)) {
+        setCreatingNode(null);
+        setTempName("");
+      }
     };
 
-    window.addEventListener("create-new-file", handleCreateNewFile);
-    return () => window.removeEventListener("create-new-file", handleCreateNewFile);
-  }, []);
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [creatingNode]);
+
+  useEffect(() => {
+    if (creatingNode && creatingInputRef.current) {
+      try {
+        creatingInputRef.current.focus();
+        creatingInputRef.current.select();
+        creatingInputRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      } catch (e) { }
+    }
+  }, [creatingNode]);
 
   // Get file icon based on extension
   const getFileTypeIcon = (fileName) => {
@@ -331,6 +343,17 @@ export default function FileExplorer() {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const handleOutsideExplorerClick = (event) => {
+      if (explorerRef.current && !explorerRef.current.contains(event.target)) {
+        setSelectedFolderId(ROOT_FOLDER_ID);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideExplorerClick);
+    return () => document.removeEventListener("mousedown", handleOutsideExplorerClick);
+  }, []);
+
   // File preview handler - opens file in editor
   const handleFilePreview = async (filePath, fileName) => {
     try {
@@ -374,35 +397,6 @@ export default function FileExplorer() {
     await handleFilePreview(filePath, fileName);
   };
 
-  // Handle file creation
-  const handleCreateFile = () => {
-    if (!newFileName.trim()) return;
-    const newFile = {
-      path: `${currentPath.join("/")}/${newFileName}`,
-      name: newFileName,
-      timestamp: new Date().toISOString(),
-    };
-    addRecentlyOpened(newFile.path, newFile.name);
-    setNewFileName("");
-    setShowCreateFile(false);
-  };
-
-  // Shared create helper used by header inline inputs
-  const createFileAndRefresh = async (path, content = "// New file\n") => {
-    try {
-      await createFile(path, content);
-      await loadStructure();
-      // if created in root, ensure root expanded
-      setExpandedFolders((prev) => prev);
-      try { addRecentlyOpened(path, path.split('/').pop()); } catch { }
-      return true;
-    } catch (err) {
-      console.error('Create failed:', err);
-      toast.push(`Failed to create: ${err?.message || err}`, { type: 'error' });
-      return false;
-    }
-  };
-
   // Handle rename via API
   const handleRename = async (item, newName) => {
     if (newName.trim() && newName !== item.name) {
@@ -437,131 +431,123 @@ export default function FileExplorer() {
     }
   };
 
-  // Handle create file via API
-  const handleCreateFileAPI = async () => {
-    const name = (newFileName || "").trim();
-    if (!name) {
-      toast.push("Please enter a file name (including extension), e.g. main.cpp", { type: 'error' });
+  const getChildrenForPath = useCallback((parentId = "") => {
+    const node = findNodeByPath(parentId);
+    return node?.children || [];
+  }, [projectStructure]);
+
+  const startCreation = useCallback((type, parentId = "") => {
+    if (creatingNode) {
+      return;
+    }
+    if (parentId) {
+      setExpandedFolders((prev) => Array.from(new Set([...(prev || []), parentId])));
+    }
+    setCreatingNode({ type, parentId });
+    setTempName("");
+  }, [creatingNode]);
+
+  const resetCreation = useCallback(() => {
+    setCreatingNode(null);
+    setTempName("");
+  }, []);
+
+  // Listen for keyboard shortcut to create new file (Ctrl+N)
+  useEffect(() => {
+    const handleCreateNewFile = () => {
+      const parentId = selectedFolderId === ROOT_FOLDER_ID ? "" : selectedFolderId;
+      startCreation("file", parentId);
+    };
+
+    window.addEventListener("create-new-file", handleCreateNewFile);
+    return () => window.removeEventListener("create-new-file", handleCreateNewFile);
+  }, [selectedFolderId, startCreation]);
+
+  const handleCreateKeyDown = useCallback(async (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      resetCreation();
       return;
     }
 
-    // Validate extension exists and is allowed
-    const extMatch = name.match(/\.([a-z0-9]+)$/i);
-    if (!extMatch) {
-      toast.push("File extension required. Please include an extension like .js, .py, .cpp", { type: 'error' });
+    if (e.key !== "Enter") {
       return;
     }
-    const ext = extMatch[1].toLowerCase();
-    const allowed = new Set(["js", "jsx", "ts", "tsx", "py", "java", "c", "cpp", "rs", "go", "html", "css", "json", "md", "txt", "sh", "bash", "yml", "yaml"]);
-    if (!allowed.has(ext)) {
-      toast.push(`Invalid or unsupported extension '.${ext}'. Allowed: ${Array.from(allowed).join(', ')}`, { type: 'error' });
+
+    e.preventDefault();
+    if (!creatingNode) {
       return;
     }
+
+    const name = tempName.trim();
+    if (!name) {
+      return;
+    }
+
+    if (name.includes("/")) {
+      toast.push("Names cannot contain /", { type: 'error' });
+      return;
+    }
+
+    const parentId = creatingNode.parentId || "";
+    const siblings = getChildrenForPath(parentId);
+    if (siblings.some((item) => item.name === name)) {
+      toast.push(`A file or folder named '${name}' already exists here.`, { type: 'error' });
+      return;
+    }
+
+    const relativePath = parentId ? `${parentId}/${name}` : name;
 
     try {
-      // If no folder selected, create in root, otherwise in selected folder
-      const basePath = currentPath.length > 0 ? currentPath.join("/") : "";
-      let newPath = basePath ? `${basePath}/${newFileName}` : newFileName;
-
-      // Ensure path doesn't start with /
-      if (newPath.startsWith("/")) {
-        newPath = newPath.substring(1);
-      }
-
-      await createFile(newPath, "// New file\n");
-
-      // Reload structure
-      const data = await getProjectStructure();
-      setProjectStructure(data.structure || []);
-
-      // Auto-navigate to the file's directory if in root
-      if (currentPath.length === 0 && basePath === "") {
-        // File created in root - navigate to root to show it
-        setCurrentPath([]);
-      }
-
-      // Auto-expand the folder containing the new file
-      if (basePath) {
-        setExpandedFolders((prev) => {
-          const expanded = new Set(prev);
-          expanded.add(basePath);
-          return Array.from(expanded);
-        });
-      }
-
-      setNewFileName("");
-      setShowCreateFile(false);
-
-      // Open new file in preview
-      addRecentlyOpened(newPath, newFileName);
-    } catch (err) {
-      console.error("Create failed:", err);
-      const errorMsg = err.response?.data?.error || err.message;
-
-      if (err.response?.status === 409) {
-        toast.push(`⚠️ File already exists: ${newFileName}`, { type: 'error' });
+      if (creatingNode.type === "folder") {
+        await createFolder(relativePath);
       } else {
-        toast.push(`❌ Failed to create file: ${errorMsg}`, { type: 'error' });
+        const extMatch = name.match(/\.([a-z0-9]+)$/i);
+        if (!extMatch) {
+          toast.push('Please include a file extension, e.g. main.js', { type: 'error' });
+          return;
+        }
+        await createFile(relativePath, "// New file\n");
       }
-    }
-  };
 
-  // Header inline create handlers
-  const handleHeaderCreateFile = async () => {
-    const name = (newFileNameHeader || "").trim();
-    if (!name) {
-      setShowCreateFileHeader(false);
-      setNewFileNameHeader("");
-      return;
-    }
-    // validate extension
-    const extMatch = name.match(/\.([a-z0-9]+)$/i);
-    if (!extMatch) {
-      toast.push('Please include a file extension, e.g. main.js', { type: 'error' });
-      return;
-    }
-    const target = name.startsWith('/') ? name.slice(1) : name;
-    const ok = await createFileAndRefresh(target, "// New file\n");
-    if (ok) {
-      setNewFileNameHeader("");
-      setShowCreateFileHeader(false);
-    }
-  };
-
-  const handleHeaderCreateFolder = async () => {
-    const name = (newFolderNameHeader || "").trim();
-    if (!name) {
-      setShowCreateFolderHeader(false);
-      setNewFolderNameHeader("");
-      return;
-    }
-    const folder = name.replace(/^\/+/, '');
-    try {
-      await createFolder(folder);
       await loadStructure();
-      setNewFolderNameHeader("");
-      setShowCreateFolderHeader(false);
-      setExpandedFolders((prev) => {
-        const next = new Set(prev);
-        next.add(folder);
-        return Array.from(next);
-      });
-      // After creating a folder, offer to create a file inside it by
-      // opening the header file-create input prefilled with "folder/"
-      try {
-        setNewFileNameHeader(`${folder}/`);
-        setShowCreateFileHeader(true);
-        // focus the header file input if available
-        setTimeout(() => {
-          try { fileInputRef.current?.focus?.(); } catch (e) { }
-        }, 60);
-      } catch (e) { }
+      if (parentId) {
+        setExpandedFolders((prev) => Array.from(new Set([...(prev || []), parentId])));
+      }
+      resetCreation();
     } catch (err) {
-      console.error('Create folder failed:', err);
-      const msg = err.response?.data?.error || err.message;
-      toast.push(`Failed to create folder: ${msg}`, { type: 'error' });
+      console.error('Create failed:', err);
+      const msg = err?.response?.data?.error || err?.message || String(err);
+      toast.push(`Failed to create ${creatingNode.type}: ${msg}`, { type: 'error' });
     }
-  };
+  }, [creatingNode, tempName, getChildrenForPath, loadStructure, resetCreation, toast]);
+
+  const renderCreationInput = useCallback((parentId = "") => {
+    if (!creatingNode || creatingNode.parentId !== parentId) {
+      return null;
+    }
+
+    return (
+      <div ref={creatingInputWrapRef} className="flex items-center gap-1 rounded border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5">
+        {creatingNode.type === "folder" ? (
+          <Folder size={14} className="text-yellow-300" />
+        ) : (
+          <File size={12} className="text-white/40" />
+        )}
+        <input
+          ref={creatingInputRef}
+          autoFocus
+          type="text"
+          value={tempName}
+          onChange={(e) => setTempName(e.target.value)}
+          onKeyDown={handleCreateKeyDown}
+          onBlur={resetCreation}
+          placeholder={creatingNode.type === "folder" ? "folder name" : "file name.ext"}
+          className="w-52 bg-transparent px-1 text-xs text-white outline-none placeholder:text-white/40"
+        />
+      </div>
+    );
+  }, [creatingNode, handleCreateKeyDown, resetCreation, tempName]);
 
   // Render tree recursively
   const renderTree = (items, parentPath = "", depth = 0) => {
@@ -573,38 +559,38 @@ export default function FileExplorer() {
 
       if (item.type === "folder") {
         const isExpanded = expandedFolders.includes(itemPath);
+        const isSelectedFolder = selectedFolderId === itemPath;
         return (
           <div key={itemPath} className="space-y-0.5">
             <div
-              onClick={() => toggleFolder(itemPath)}
+              onClick={() => setSelectedFolderId(itemPath)}
+              onDoubleClick={() => toggleFolder(itemPath)}
               onContextMenu={(e) => handleContextMenu(e, item, itemPath)}
-              className="flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer hover:bg-white/10 transition group"
+              className={`flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition group ${isSelectedFolder
+                  ? "bg-cyan-500/15 ring-1 ring-cyan-400/35"
+                  : "hover:bg-white/10"
+                }`}
             >
-              {isExpanded ? (
-                <ChevronDown size={14} className="text-white/60" />
-              ) : (
-                <ChevronRight size={14} className="text-white/60" />
-              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFolder(itemPath);
+                }}
+                className="rounded p-0.5 text-white/60 hover:bg-white/10"
+                title={isExpanded ? "Collapse folder" : "Expand folder"}
+              >
+                {isExpanded ? (
+                  <ChevronDown size={14} className="text-white/60" />
+                ) : (
+                  <ChevronRight size={14} className="text-white/60" />
+                )}
+              </button>
               {isExpanded ? (
                 <FolderOpen size={14} className="text-yellow-300" />
               ) : (
                 <Folder size={14} className="text-yellow-300" />
               )}
-              {/* per-folder quick-create: show small + to create a file inside this folder */}
-              <div className="ml-1">
-                <button
-                  type="button"
-                  title="Quick create untitled file inside folder"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // immediate create untitled file inside this folder
-                    handleQuickCreateUntitledFile(itemPath).catch((err) => console.error(err));
-                  }}
-                  className="p-1 rounded hover:bg-white/10 text-white/40"
-                >
-                  <Plus size={12} />
-                </button>
-              </div>
               {selectedForRename?.path === itemPath ? (
                 <>
                   <Folder size={14} className="text-yellow-300" />
@@ -650,44 +636,7 @@ export default function FileExplorer() {
             </div>
             {isExpanded && (
               <div className="pl-4 space-y-0.5 border-l border-white/5">
-                {/* Inline new-file input shown at the top of children when creatingFileAt === this folder */}
-                {creatingFileAt === itemPath && (
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded">
-                    <File size={12} className="text-white/40" />
-                    <input
-                      ref={creatingInputRef}
-                      type="text"
-                      placeholder="filename.ext"
-                      value={creatingFileDraft}
-                      onChange={(e) => setCreatingFileDraft(e.target.value)}
-                      onKeyDown={async (e) => {
-                        if (e.key === 'Enter') {
-                          e.stopPropagation();
-                          await handleCreateFileInline(itemPath);
-                        }
-                        if (e.key === 'Escape') {
-                          setCreatingFileAt(null);
-                          setCreatingFileDraft('');
-                        }
-                      }}
-                      className="text-xs bg-black/20 border border-cyan-400 px-1 rounded text-white w-48"
-                    />
-                    <button
-                      onClick={async (ev) => { ev.stopPropagation(); await handleCreateFileInline(itemPath); }}
-                      className="p-1 rounded hover:bg-white/10 text-white/60"
-                      title="Create file"
-                    >
-                      <CheckCircle size={14} />
-                    </button>
-                    <button
-                      onClick={(ev) => { ev.stopPropagation(); setCreatingFileAt(null); setCreatingFileDraft(''); }}
-                      className="p-1 rounded hover:bg-white/10 text-white/40"
-                      title="Cancel"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                )}
+                {renderCreationInput(itemPath)}
                 {item.children && item.children.length > 0 && renderTree(item.children, itemPath, depth + 1)}
               </div>
             )}
@@ -727,124 +676,6 @@ export default function FileExplorer() {
     });
   };
 
-  // Inline create handler
-  const handleCreateFileInline = async (folderPath) => {
-    const name = (creatingFileDraft || '').trim();
-    if (!name) {
-      toast.push('Please enter a file name including extension', { type: 'error' });
-      return;
-    }
-
-    const extMatch = name.match(/\.([a-z0-9]+)$/i);
-    if (!extMatch) {
-      toast.push('Please include a file extension, e.g. main.js', { type: 'error' });
-      return;
-    }
-    const ext = extMatch[1].toLowerCase();
-    const allowed = new Set(["js", "jsx", "ts", "tsx", "py", "java", "c", "cpp", "rs", "go", "html", "css", "json", "md", "txt", "sh", "bash", "yml", "yaml"]);
-    if (!allowed.has(ext)) {
-      toast.push(`Invalid extension '.${ext}'`, { type: 'error' });
-      return;
-    }
-
-    // build relative path
-    const base = folderPath || '';
-    let rel = base ? `${base}/${name}` : name;
-    if (rel.startsWith('/')) rel = rel.slice(1);
-
-    // check duplicate
-    const node = findNodeByPath(base);
-    if ((node?.children || []).some(i => i.name === name && i.type === 'file')) {
-      toast.push(`File already exists: ${name}`, { type: 'error' });
-      return;
-    }
-
-    try {
-      const ok = await createFileAndRefresh(rel, '// New file\n');
-      if (ok) {
-        // expand the folder
-        if (base) setExpandedFolders((prev) => Array.from(new Set([...(prev || []), base])));
-        // open file in editor
-        try { await handleFilePreview(rel, name); } catch (e) { console.error('open after create failed', e); }
-        setCreatingFileAt(null);
-        setCreatingFileDraft('');
-      }
-    } catch (err) {
-      console.error('Inline create failed', err);
-      toast.push(`Failed to create file: ${err.message || err}`, { type: 'error' });
-    }
-  };
-
-  // Helper to pick a unique untitled name inside a folder
-  const getNextUntitledName = (folderPath = '', isFolder = false) => {
-    const node = findNodeByPath(folderPath);
-    const children = node?.children || [];
-    const base = isFolder ? 'untitled' : 'untitled';
-    // For files, default extension .txt
-    const ext = isFolder ? '' : '.txt';
-    let candidate = `${base}${ext}`;
-    let i = 1;
-    const exists = (name) => children.some(c => c.name === name);
-    while (exists(candidate)) {
-      candidate = `${base}-${i}${ext}`;
-      i += 1;
-    }
-    return candidate;
-  };
-
-  // Quick create an untitled file in folderPath ('' for root)
-  const handleQuickCreateUntitledFile = async (folderPath = '') => {
-    const name = getNextUntitledName(folderPath, false);
-    const rel = folderPath ? `${folderPath}/${name}` : name;
-    try {
-      await createFileAndRefresh(rel, '// New file\n');
-      // expand folder if needed
-      if (folderPath) setExpandedFolders((prev) => Array.from(new Set([...(prev || []), folderPath])));
-      // don't auto-open the file; instead enter rename mode so the user can edit the name
-      try {
-        setSelectedForRename({ path: rel, item: { name, type: 'file' } });
-        setRenameValue(name);
-        // ensure the tree reflects the new item and give a tick for autofocus
-        setTimeout(() => {
-          // the input in FileItem has autoFocus; no explicit focus needed, but keep for safety
-          try { document.querySelector(`input[value=\"${name}\"]`)?.focus?.(); } catch (e) { }
-        }, 40);
-      } catch (e) {
-        console.error('enter rename mode failed', e);
-      }
-    } catch (err) {
-      console.error('Quick untitled create failed', err);
-      toast.push(`Failed to create file: ${err.message || err}`, { type: 'error' });
-    }
-  };
-
-  // Quick create an untitled folder (and an initial untitled file inside)
-  const handleQuickCreateUntitledFolder = async (parentPath = '') => {
-    // choose folder name unique among parent's children
-    const node = findNodeByPath(parentPath);
-    const children = node?.children || [];
-    let base = 'untitled-folder';
-    let candidate = base;
-    let i = 1;
-    const existsFolder = (name) => children.some(c => c.name === name && c.type === 'folder');
-    while (existsFolder(candidate)) {
-      candidate = `${base}-${i}`;
-      i += 1;
-    }
-    const relFolder = parentPath ? `${parentPath}/${candidate}` : candidate;
-    try {
-      await createFolder(relFolder);
-      await loadStructure();
-      setExpandedFolders((prev) => Array.from(new Set([...(prev || []), parentPath, relFolder].filter(Boolean))));
-      // enter rename mode for the new folder so the user can change its name immediately
-      setSelectedForRename({ path: relFolder, item: { name: candidate, type: 'folder' } });
-      setRenameValue(candidate);
-    } catch (err) {
-      console.error('Quick create folder failed', err);
-      toast.push(`Failed to create folder: ${err.message || err}`, { type: 'error' });
-    }
-  };
-
   const filterItems = (items, query) => {
     if (!query.trim()) return items;
     const lowerQuery = query.toLowerCase();
@@ -862,7 +693,7 @@ export default function FileExplorer() {
 
   return (
     <ToastProvider>
-      <div className="h-full flex flex-col bg-gray-900/50 border-r border-white/10 overflow-hidden file-explorer">
+      <div ref={explorerRef} className="h-full flex flex-col bg-gray-900/50 border-r border-white/10 overflow-hidden file-explorer">
         {/* Explorer Header */}
         <div className="ui-header">
           <div className="text-xs font-semibold uppercase tracking-wide text-white/70">
@@ -893,8 +724,8 @@ export default function FileExplorer() {
           </div>
         )}
 
-        {/* Scrollable Content - Force scrollbar width to prevent layout shift */}
-        <div className="flex-1 overflow-y-scroll text-sm text-white file-explorer-content">
+        {/* Scrollable Content - keep controls fixed and scroll only the tree area */}
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden text-sm text-white file-explorer-content">
           {/* Search Results Section */}
           {searchQuery.length >= 2 && searchResults.length > 0 && (
             <div className="border-b border-white/10">
@@ -920,144 +751,43 @@ export default function FileExplorer() {
 
           {/* Project Files Section - Show when folder is selected OR when files exist in root */}
           {(currentPath.length > 0 || projectStructure.length > 0) && (
-            <div>
+            <div className="flex min-h-0 flex-1 flex-col">
               <div className="px-4 py-2 text-xs font-semibold uppercase text-white/60 tracking-widest bg-black/20 flex items-center justify-between">
                 <div>{currentPath.length > 0 ? "Project Files" : "Root Files"}</div>
                 {currentPath.length === 0 && (
                   <div className="flex items-center gap-2">
-                    {/* Inline header create controls (no browser prompts) */}
-                    {showCreateFileHeader ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          ref={fileInputRef}
-                          type="text"
-                          placeholder="filename.ext or folder/name.ext"
-                          value={newFileNameHeader}
-                          onChange={(e) => setNewFileNameHeader(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleHeaderCreateFile();
-                            if (e.key === 'Escape') { setShowCreateFileHeader(false); setNewFileNameHeader(''); }
-                          }}
-                          className="text-xs bg-black/20 border border-cyan-400 px-1 rounded text-white w-40"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleHeaderCreateFile}
-                          title="Create file"
-                          className="p-1 rounded hover:bg-white/10 text-white/70"
-                        >
-                          <Plus size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setShowCreateFileHeader(false); setNewFileNameHeader(''); }}
-                          title="Cancel"
-                          className="p-1 rounded hover:bg-white/10 text-white/70"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        title="Quick create untitled file in root"
-                        onClick={() => {
-                          handleQuickCreateUntitledFile("").catch((err) => console.error(err));
-                        }}
-                        className="p-1 rounded hover:bg-white/10 text-white/70"
-                      >
-                        <FilePlus size={14} />
-                      </button>
-                    )}
-
-                    {showCreateFolderHeader ? (
-                      <div className="flex items-center gap-1">
-                        <Folder size={14} className="text-yellow-300" />
-                        <input
-                          type="text"
-                          placeholder="folder name"
-                          value={newFolderNameHeader}
-                          onChange={(e) => setNewFolderNameHeader(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleHeaderCreateFolder();
-                            if (e.key === 'Escape') { setShowCreateFolderHeader(false); setNewFolderNameHeader(''); }
-                          }}
-                          className="text-xs bg-black/20 border border-cyan-400 px-1 rounded text-white w-28"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleHeaderCreateFolder}
-                          title="Create folder"
-                          className="p-1 rounded hover:bg-white/10 text-white/70"
-                        >
-                          <Plus size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setShowCreateFolderHeader(false); setNewFolderNameHeader(''); }}
-                          title="Cancel"
-                          className="p-1 rounded hover:bg-white/10 text-white/70"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        title="Quick create untitled folder"
-                        onClick={() => {
-                          handleQuickCreateUntitledFolder(currentPath.join('/')).catch((err) => console.error(err));
-                        }}
-                        className="p-1 rounded hover:bg-white/10 text-white/70"
-                      >
-                        <FolderPlus size={14} />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      title="Create file"
+                      onClick={() => startCreation("file", selectedFolderId === ROOT_FOLDER_ID ? "" : selectedFolderId)}
+                      className="p-1 rounded hover:bg-white/10 text-white/70"
+                    >
+                      <FilePlus size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Create folder"
+                      onClick={() => startCreation("folder", selectedFolderId === ROOT_FOLDER_ID ? "" : selectedFolderId)}
+                      className="p-1 rounded hover:bg-white/10 text-white/70"
+                    >
+                      <FolderPlus size={14} />
+                    </button>
                   </div>
                 )}
               </div>
-              <div className="px-2 py-1 space-y-0.5">
-                {/* Inline root create input when creatingFileAt === '' */}
-                {creatingFileAt === "" && (
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded">
-                    <File size={12} className="text-white/40" />
-                    <input
-                      ref={creatingInputRef}
-                      type="text"
-                      placeholder=""
-                      value={creatingFileDraft}
-                      onChange={(e) => setCreatingFileDraft(e.target.value)}
-                      onKeyDown={async (e) => {
-                        if (e.key === 'Enter') { e.stopPropagation(); await handleCreateFileInline(''); }
-                        if (e.key === 'Escape') { setCreatingFileAt(null); setCreatingFileDraft(''); }
-                      }}
-                      className="text-xs bg-black/20 border border-cyan-400 px-1 rounded text-white w-48"
-                    />
-                    <button
-                      onClick={async (ev) => { ev.stopPropagation(); await handleCreateFileInline(''); }}
-                      className="p-1 rounded hover:bg-white/10 text-white/60"
-                      title="Create file"
-                    >
-                      <CheckCircle size={14} />
-                    </button>
-                    <button
-                      onClick={(ev) => { ev.stopPropagation(); setCreatingFileAt(null); setCreatingFileDraft(''); }}
-                      className="p-1 rounded hover:bg-white/10 text-white/40"
-                      title="Cancel"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                )}
-                {loading ? (
-                  <div className="px-2 py-2 text-xs text-white/50">Loading...</div>
-                ) : projectStructure.length > 0 ? (
-                  renderTree(projectStructure)
-                ) : (
-                  <div className="px-2 py-2 text-xs text-white/50">
-                    No files found
-                  </div>
-                )}
+              <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
+                <div className="space-y-0.5">
+                  {renderCreationInput("")}
+                  {loading ? (
+                    <div className="px-2 py-2 text-xs text-white/50">Loading...</div>
+                  ) : projectStructure.length > 0 ? (
+                    renderTree(projectStructure)
+                  ) : (
+                    <div className="px-2 py-2 text-xs text-white/50">
+                      No files found
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -1074,46 +804,24 @@ export default function FileExplorer() {
 
         {/* Footer Actions */}
         <div className="border-t border-white/10 bg-black/20 px-2.5 py-2 space-y-1.5">
-          {showCreateFile && (
-            <div className="flex gap-1">
-              <input
-                type="text"
-                placeholder="File name..."
-                value={newFileName}
-                onChange={(e) => setNewFileName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCreateFileAPI();
-                  if (e.key === "Escape") setShowCreateFile(false);
-                }}
-                autoFocus
-                style={{ caretColor: '#ffffff' }}
-                className="flex-1 px-2 py-1 text-xs rounded bg-black/20 border border-cyan-400 text-white placeholder:text-white/50 outline-none"
-              />
-              <button
-                onClick={handleCreateFileAPI}
-                className="p-1 rounded hover:bg-green-500/30 transition"
-              >
-                <Plus size={12} className="text-green-400" />
-              </button>
-              <button
-                onClick={() => {
-                  setShowCreateFile(false);
-                  setNewFileName("");
-                }}
-                className="p-1 rounded hover:bg-red-500/30 transition"
-              >
-                <X size={12} className="text-red-400" />
-              </button>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => setShowCreateFile(true)}
-            className="w-full min-h-9 rounded-md px-2 py-1.5 text-xs text-white/65 transition hover:bg-white/10 hover:text-white/85 flex items-center justify-center gap-1"
-            title="Create new file"
-          >
-            <Plus size={12} /> New File
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => startCreation("file", selectedFolderId === ROOT_FOLDER_ID ? "" : selectedFolderId)}
+              className="flex-1 min-h-9 rounded-md px-2 py-1.5 text-xs text-white/65 transition hover:bg-white/10 hover:text-white/85 flex items-center justify-center gap-1"
+              title="Create new file"
+            >
+              <Plus size={12} /> New File
+            </button>
+            <button
+              type="button"
+              onClick={() => startCreation("folder", selectedFolderId === ROOT_FOLDER_ID ? "" : selectedFolderId)}
+              className="flex-1 min-h-9 rounded-md px-2 py-1.5 text-xs text-white/65 transition hover:bg-white/10 hover:text-white/85 flex items-center justify-center gap-1"
+              title="Create new folder"
+            >
+              <FolderPlus size={12} /> New Folder
+            </button>
+          </div>
         </div>
 
         {/* Context Menu */}
