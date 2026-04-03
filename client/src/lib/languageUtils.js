@@ -1,3 +1,93 @@
+export const extensionToLanguage = {
+  ".js": "javascript",
+  ".jsx": "javascript",
+  ".ts": "typescript",
+  ".tsx": "typescript",
+  ".py": "python",
+  ".c": "c",
+  ".cpp": "cpp",
+  ".cc": "cpp",
+  ".cxx": "cpp",
+  ".java": "java",
+  ".html": "plaintext",
+  ".htm": "plaintext",
+  ".css": "plaintext",
+  ".json": "plaintext",
+  ".rs": "rust",
+  ".go": "go",
+  ".clj": "clojure",
+  ".rb": "ruby",
+  ".php": "php",
+  ".sh": "bash",
+  ".bash": "bash",
+  ".md": "plaintext",
+  ".txt": "plaintext",
+  ".sql": "sql",
+  ".swift": "swift",
+  ".kt": "kotlin",
+  ".cs": "csharp",
+};
+
+export const extensionToJudge0LanguageId = {
+  ".js": 63,
+  ".jsx": 63,
+  ".ts": 74,
+  ".tsx": 74,
+  ".py": 71,
+  ".c": 50,
+  ".cpp": 54,
+  ".cc": 54,
+  ".cxx": 54,
+  ".java": 91,
+  ".html": 43,
+  ".htm": 43,
+  ".css": 43,
+  ".json": 43,
+  ".rs": 73,
+  ".go": 60,
+  ".clj": 86,
+  ".rb": 72,
+  ".php": 68,
+  ".sh": 46,
+  ".bash": 46,
+  ".md": 43,
+  ".txt": 43,
+  ".sql": 82,
+  ".swift": 83,
+  ".kt": 78,
+  ".cs": 51,
+};
+
+export const getFileExtension = (fileName = "") => {
+  const trimmed = String(fileName || "").trim();
+  const lastDot = trimmed.lastIndexOf(".");
+  if (lastDot <= 0 || lastDot === trimmed.length - 1) {
+    return "";
+  }
+  return trimmed.slice(lastDot).toLowerCase();
+};
+
+export const getLanguageFromFileName = (fileName, fallback = "plaintext") => {
+  const extension = getFileExtension(fileName);
+  if (!extension) {
+    return fallback || "plaintext";
+  }
+  return extensionToLanguage[extension] || "plaintext";
+};
+
+export const getJudge0LanguageIdFromFileName = (
+  fileName,
+  fallbackLanguageId = 43,
+) => {
+  const extension = getFileExtension(fileName);
+  if (!extension) {
+    return Number.isFinite(Number(fallbackLanguageId))
+      ? Number(fallbackLanguageId)
+      : 43;
+  }
+  return extensionToJudge0LanguageId[extension] ?? 43;
+};
+
 export const getMonacoLanguage = (languageId) => {
   switch (languageId) {
     case 45:

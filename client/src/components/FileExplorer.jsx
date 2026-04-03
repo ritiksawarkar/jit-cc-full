@@ -3,6 +3,7 @@ import { useCompilerStore } from "../store/useCompilerStore";
 import { getProjectStructure, readFile, deleteFile, renameFile, createFile, searchFiles, saveFile } from "../services/api";
 import { createFolder } from "../services/api"; // Added createFolder import
 import ToastProvider, { useToast } from "./ToastProvider"; // Added ToastProvider and useToast import
+import { getJudge0LanguageIdFromFileName } from "../lib/languageUtils";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronDown,
@@ -109,6 +110,7 @@ export default function FileExplorer() {
     tabs,
     activeTabId,
     selectTab,
+    setLanguageId,
     closeTab,
     duplicateTab,
     createTab,
@@ -334,36 +336,20 @@ export default function FileExplorer() {
     try {
       const data = await readFile(filePath);
 
-      // Determine language ID based on file extension
-      const ext = fileName.split(".").pop().toLowerCase();
-      let langId = 63; // Default to JavaScript
-
-      const extToLangMap = {
-        js: 63,
-        jsx: 63,
-        ts: 74,
-        tsx: 74,
-        py: 71,
-        cpp: 54,
-        c: 50,
-        java: 52,
-        rs: 73,
-        go: 60,
-        clj: 86,
-      };
-
-      if (ext in extToLangMap) {
-        langId = extToLangMap[ext];
-      }
+      const state = useCompilerStore.getState();
+      const detectedLanguageId = getJudge0LanguageIdFromFileName(
+        fileName,
+        state.languageId ?? 63,
+      );
 
       // If the file is already open in a tab, select that tab and update its content.
-      const state = useCompilerStore.getState();
       // Prefer matching by full path if tabs have a path, otherwise fall back to name
       const opened = (state.tabs || []).find((t) => (t.path ? t.path === filePath : t.name === fileName));
       if (opened) {
         // Select existing tab and update content (ensure string)
         if (state.selectTab) state.selectTab(opened.id);
         if (state.updateTabContent) state.updateTabContent(opened.id, String(data.content || ""));
+        if (state.setLanguageId) state.setLanguageId(detectedLanguageId);
       } else {
         // Create new tab with file content (ensure string)
         createTab({
@@ -371,6 +357,7 @@ export default function FileExplorer() {
           path: filePath,
           content: String(data.content || ""),
           isCustomName: true,
+          languageId: detectedLanguageId,
         });
       }
 

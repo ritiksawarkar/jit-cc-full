@@ -1,33 +1,39 @@
 import { create } from "zustand";
-import { getMonacoLanguage, getDefaultFileNameForMonaco } from "../lib/languageUtils";
+import {
+  getMonacoLanguage,
+  getDefaultFileNameForMonaco,
+} from "../lib/languageUtils";
 import { explainError as apiExplainError } from "../services/api";
 
 // Simple heuristic fallback for common error messages across languages.
 function explainFallback(stderr, compile_output, languageId) {
-  const text = `${stderr || ''}\n${compile_output || ''}`.toLowerCase();
+  const text = `${stderr || ""}\n${compile_output || ""}`.toLowerCase();
   // Common JavaScript runtime errors
-  if (text.includes('referenceerror') || text.includes('is not defined')) {
-    return 'ReferenceError: A variable or function is used before it is defined. Check for typos, missing imports, or scope issues.';
+  if (text.includes("referenceerror") || text.includes("is not defined")) {
+    return "ReferenceError: A variable or function is used before it is defined. Check for typos, missing imports, or scope issues.";
   }
-  if (text.includes('syntaxerror') || text.includes('unexpected token')) {
-    return 'SyntaxError: There is likely a missing or extra token in your code (bracket, parenthesis, comma). Check the nearby line for syntax issues.';
+  if (text.includes("syntaxerror") || text.includes("unexpected token")) {
+    return "SyntaxError: There is likely a missing or extra token in your code (bracket, parenthesis, comma). Check the nearby line for syntax issues.";
   }
-  if (text.includes('typeerror')) {
-    return 'TypeError: An operation was performed on a value of the wrong type (e.g., calling a non-function). Inspect the value that caused the error.';
+  if (text.includes("typeerror")) {
+    return "TypeError: An operation was performed on a value of the wrong type (e.g., calling a non-function). Inspect the value that caused the error.";
   }
   // Common Python hints
-  if (text.includes('indentationerror') || text.includes('expected an indented block')) {
-    return 'IndentationError: Python expects consistent indentation. Make sure spaces/tabs are consistent and blocks are indented properly.';
+  if (
+    text.includes("indentationerror") ||
+    text.includes("expected an indented block")
+  ) {
+    return "IndentationError: Python expects consistent indentation. Make sure spaces/tabs are consistent and blocks are indented properly.";
   }
-  if (text.includes('nameerror') && text.includes('name')) {
-    return 'NameError: A variable or function name is not defined in scope. Check for typos or missing declarations.';
+  if (text.includes("nameerror") && text.includes("name")) {
+    return "NameError: A variable or function name is not defined in scope. Check for typos or missing declarations.";
   }
   // Compilation errors (C/C++/Java)
-  if (text.includes('error:') || text.includes('undefined reference')) {
-    return 'Compilation error: Check the compiler output for missing symbols, mismatched types, or missing headers. See the compile output above for details.';
+  if (text.includes("error:") || text.includes("undefined reference")) {
+    return "Compilation error: Check the compiler output for missing symbols, mismatched types, or missing headers. See the compile output above for details.";
   }
   // Fallback generic hint
-  return 'No specific heuristic was matched. Inspect the stderr and compile output above. If available, enable AI suggestions on the server for richer explanations.';
+  return "No specific heuristic was matched. Inspect the stderr and compile output above. If available, enable AI suggestions on the server for richer explanations.";
 }
 
 const CURRENT_SESSION_STORAGE_KEY = "esm-compiler-session";
@@ -65,7 +71,7 @@ const persistSession = (session) => {
       JSON.stringify({
         user: session.user ?? null,
         token: session.token ?? null,
-      })
+      }),
     );
   } catch {
     // ignore persistence errors (private browsing, etc.)
@@ -141,8 +147,8 @@ solve();`, // Default code
   runLimit: null,
   dailyRunDate: (() => {
     try {
-      if (typeof window === 'undefined') return null;
-      const raw = window.localStorage.getItem('esm-run-daily');
+      if (typeof window === "undefined") return null;
+      const raw = window.localStorage.getItem("esm-run-daily");
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       return parsed?.date ?? null;
@@ -152,8 +158,8 @@ solve();`, // Default code
   })(),
   dailyRunCount: (() => {
     try {
-      if (typeof window === 'undefined') return 0;
-      const raw = window.localStorage.getItem('esm-run-daily');
+      if (typeof window === "undefined") return 0;
+      const raw = window.localStorage.getItem("esm-run-daily");
       if (!raw) return 0;
       const parsed = JSON.parse(raw);
       return Number(parsed?.count ?? 0) || 0;
@@ -165,8 +171,8 @@ solve();`, // Default code
   // export behavior: whether Export to Zip should include all open tabs
   exportAllFiles: (() => {
     try {
-      if (typeof window === 'undefined') return false;
-      const raw = window.localStorage.getItem('esm-export-all');
+      if (typeof window === "undefined") return false;
+      const raw = window.localStorage.getItem("esm-export-all");
       if (!raw) return false;
       const parsed = JSON.parse(raw);
       return !!parsed?.exportAll;
@@ -178,8 +184,8 @@ solve();`, // Default code
   // Auto-save settings (persisted)
   autoSaveEnabled: (() => {
     try {
-      if (typeof window === 'undefined') return true;
-      const raw = window.localStorage.getItem('esm-auto-save');
+      if (typeof window === "undefined") return true;
+      const raw = window.localStorage.getItem("esm-auto-save");
       if (!raw) return true;
       const parsed = JSON.parse(raw);
       return !!parsed?.enabled;
@@ -189,8 +195,8 @@ solve();`, // Default code
   })(),
   autoSaveInterval: (() => {
     try {
-      if (typeof window === 'undefined') return 5; // seconds
-      const raw = window.localStorage.getItem('esm-auto-save');
+      if (typeof window === "undefined") return 5; // seconds
+      const raw = window.localStorage.getItem("esm-auto-save");
       if (!raw) return 5;
       const parsed = JSON.parse(raw);
       return Number(parsed?.interval ?? 5) || 5;
@@ -202,8 +208,8 @@ solve();`, // Default code
   // Recently opened files: array of { path, name, timestamp }
   recentlyOpened: (() => {
     try {
-      if (typeof window === 'undefined') return [];
-      const raw = window.localStorage.getItem('esm-recently-opened');
+      if (typeof window === "undefined") return [];
+      const raw = window.localStorage.getItem("esm-recently-opened");
       if (!raw) return [];
       const parsed = JSON.parse(raw);
       return Array.isArray(parsed) ? parsed : [];
@@ -212,7 +218,19 @@ solve();`, // Default code
     }
   })(),
 
-  setLanguageId: (id) => set({ languageId: id }),
+  setLanguageId: (id) =>
+    set((state) => {
+      const parsedLanguageId = Number(id);
+      const nextLanguageId = Number.isFinite(parsedLanguageId)
+        ? parsedLanguageId
+        : state.languageId;
+      const nextTabs = (state.tabs || []).map((tab) =>
+        tab.id === state.activeTabId
+          ? { ...tab, languageId: nextLanguageId }
+          : tab,
+      );
+      return { languageId: nextLanguageId, tabs: nextTabs };
+    }),
   setTheme: (t) => set({ theme: t }),
   setSource: (s) => set({ source: s }),
   setStdin: (i) => set({ stdin: i }),
@@ -234,20 +252,35 @@ solve();`, // Default code
       }
       set({ explainLoading: true, explanation: null });
       try {
-        const resp = await apiExplainError({ language: state.languageId, stderr: String(stderr), compile_output: String(compile_output), context: res.stdout || "" });
+        const resp = await apiExplainError({
+          language: state.languageId,
+          stderr: String(stderr),
+          compile_output: String(compile_output),
+          context: res.stdout || "",
+        });
         const suggested = resp?.suggestions;
         if (suggested && String(suggested).trim()) {
           set({ explanation: suggested });
         } else {
           // fallback to heuristic hints
-          const hint = explainFallback(String(stderr), String(compile_output), state.languageId);
+          const hint = explainFallback(
+            String(stderr),
+            String(compile_output),
+            state.languageId,
+          );
           set({ explanation: hint });
         }
       } catch (err) {
         // API failed — produce a heuristic explanation instead of failing silently
-        const hint = explainFallback(String(stderr), String(compile_output), state.languageId);
-        set({ explanation: `${String(err?.message || err || "AI request failed")}
-\n\nFallback hint:\n${hint}` });
+        const hint = explainFallback(
+          String(stderr),
+          String(compile_output),
+          state.languageId,
+        );
+        set({
+          explanation: `${String(err?.message || err || "AI request failed")}
+\n\nFallback hint:\n${hint}`,
+        });
       }
     } catch (e) {
       // ignore
@@ -262,27 +295,30 @@ solve();`, // Default code
   setTabSize: (size) => set({ tabSize: size }),
   setRunLimit: (limit) => {
     try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('esm-run-limit', JSON.stringify({ limit }));
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("esm-run-limit", JSON.stringify({ limit }));
       }
     } catch {}
     set({ runLimit: limit });
   },
   setExportAllFiles: (val) => {
     try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('esm-export-all', JSON.stringify({ exportAll: !!val }));
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          "esm-export-all",
+          JSON.stringify({ exportAll: !!val }),
+        );
       }
     } catch {}
     set({ exportAllFiles: !!val });
   },
   setAutoSaveEnabled: (enabled) => {
     try {
-      if (typeof window !== 'undefined') {
-        const raw = window.localStorage.getItem('esm-auto-save');
+      if (typeof window !== "undefined") {
+        const raw = window.localStorage.getItem("esm-auto-save");
         const parsed = raw ? JSON.parse(raw) : {};
         parsed.enabled = !!enabled;
-        window.localStorage.setItem('esm-auto-save', JSON.stringify(parsed));
+        window.localStorage.setItem("esm-auto-save", JSON.stringify(parsed));
       }
     } catch {}
     set({ autoSaveEnabled: !!enabled });
@@ -290,11 +326,11 @@ solve();`, // Default code
   setAutoSaveInterval: (seconds) => {
     const v = Number(seconds) || 5;
     try {
-      if (typeof window !== 'undefined') {
-        const raw = window.localStorage.getItem('esm-auto-save');
+      if (typeof window !== "undefined") {
+        const raw = window.localStorage.getItem("esm-auto-save");
         const parsed = raw ? JSON.parse(raw) : {};
         parsed.interval = v;
-        window.localStorage.setItem('esm-auto-save', JSON.stringify(parsed));
+        window.localStorage.setItem("esm-auto-save", JSON.stringify(parsed));
       }
     } catch {}
     set({ autoSaveInterval: v });
@@ -304,18 +340,26 @@ solve();`, // Default code
       const state = useCompilerStore.getState();
       const now = new Date().toISOString();
       // Remove if already exists, then prepend
-      const filtered = (state.recentlyOpened || []).filter((r) => r.path !== path);
-      const updated = [{ path, name, timestamp: now }, ...filtered].slice(0, 10); // Keep last 10
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('esm-recently-opened', JSON.stringify(updated));
+      const filtered = (state.recentlyOpened || []).filter(
+        (r) => r.path !== path,
+      );
+      const updated = [{ path, name, timestamp: now }, ...filtered].slice(
+        0,
+        10,
+      ); // Keep last 10
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          "esm-recently-opened",
+          JSON.stringify(updated),
+        );
       }
       set({ recentlyOpened: updated });
     } catch {}
   },
   clearRecentlyOpened: () => {
     try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('esm-recently-opened');
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("esm-recently-opened");
       }
     } catch {}
     set({ recentlyOpened: [] });
@@ -323,13 +367,16 @@ solve();`, // Default code
   // check and reset daily counter if date changed
   _ensureDaily: () => {
     try {
-      const today = new Date().toISOString().slice(0,10);
+      const today = new Date().toISOString().slice(0, 10);
       const state = useCompilerStore.getState();
       if (state.dailyRunDate !== today) {
         // reset
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
           try {
-            window.localStorage.setItem('esm-run-daily', JSON.stringify({ date: today, count: 0 }));
+            window.localStorage.setItem(
+              "esm-run-daily",
+              JSON.stringify({ date: today, count: 0 }),
+            );
           } catch {}
         }
         set({ dailyRunDate: today, dailyRunCount: 0 });
@@ -348,19 +395,27 @@ solve();`, // Default code
   },
   recordRun: () => {
     try {
-      const today = new Date().toISOString().slice(0,10);
+      const today = new Date().toISOString().slice(0, 10);
       const state = useCompilerStore.getState();
       if (state.dailyRunDate !== today) {
         state._ensureDaily();
       }
       const nextCount = (state.dailyRunCount || 0) + 1;
-      if (typeof window !== 'undefined') {
+      if (typeof window !== "undefined") {
         try {
-          window.localStorage.setItem('esm-run-daily', JSON.stringify({ date: today, count: nextCount }));
+          window.localStorage.setItem(
+            "esm-run-daily",
+            JSON.stringify({ date: today, count: nextCount }),
+          );
         } catch {}
       }
       // update runCount and leaderboardTick too
-      set({ dailyRunDate: today, dailyRunCount: nextCount, runCount: (state.runCount || 0) + 1, leaderboardTick: (state.leaderboardTick || 0) + 1 });
+      set({
+        dailyRunDate: today,
+        dailyRunCount: nextCount,
+        runCount: (state.runCount || 0) + 1,
+        leaderboardTick: (state.leaderboardTick || 0) + 1,
+      });
     } catch (e) {}
   },
   setAuthSession: ({ user, token }) => {
@@ -375,22 +430,65 @@ solve();`, // Default code
   clearIO: () => set({ stdin: "", result: null }),
 
   // Tab & editor actions
-  registerEditor: (editor, monaco) => set({ editorInstance: editor, monacoInstance: monaco }),
+  registerEditor: (editor, monaco) =>
+    set({ editorInstance: editor, monacoInstance: monaco }),
   addTab: () =>
     set((state) => {
       const next = state.nextTabCounter + 1;
       const monacoLang = getMonacoLanguage(state.languageId);
       const baseName = getDefaultFileNameForMonaco(monacoLang);
-      const name = next === 1 ? baseName : baseName.replace(/(\.[^.]+)?$/, (m) => (m ? `_${next}${m}` : `_${next}`));
-      const newTab = { id: `tab-${next}`, name, content: "", isCustomName: false, languageId: state.languageId };
-      return { tabs: [...state.tabs, newTab], activeTabId: newTab.id, nextTabCounter: next, source: "" , languageId: state.languageId, leaderboardTick: (state.leaderboardTick || 0) + 1 };
+      const name =
+        next === 1
+          ? baseName
+          : baseName.replace(/(\.[^.]+)?$/, (m) =>
+              m ? `_${next}${m}` : `_${next}`,
+            );
+      const newTab = {
+        id: `tab-${next}`,
+        name,
+        content: "",
+        isCustomName: false,
+        languageId: state.languageId,
+      };
+      return {
+        tabs: [...state.tabs, newTab],
+        activeTabId: newTab.id,
+        nextTabCounter: next,
+        source: "",
+        languageId: state.languageId,
+        leaderboardTick: (state.leaderboardTick || 0) + 1,
+      };
     }),
-  createTab: ({ name, content = "", isCustomName = false, path = undefined }) =>
+  createTab: ({
+    name,
+    content = "",
+    isCustomName = false,
+    path = undefined,
+    languageId = undefined,
+  }) =>
     set((state) => {
       const next = state.nextTabCounter + 1;
-      const safeName = name || getDefaultFileNameForMonaco(getMonacoLanguage(state.languageId));
-      const newTab = { id: `tab-${next}`, name: safeName, content: content ?? "", isCustomName, languageId: state.languageId, path };
-      return { tabs: [...state.tabs, newTab], activeTabId: newTab.id, nextTabCounter: next, source: content ?? "", languageId: state.languageId, leaderboardTick: (state.leaderboardTick || 0) + 1 };
+      const nextLanguageId = Number.isFinite(Number(languageId))
+        ? Number(languageId)
+        : state.languageId;
+      const safeName =
+        name || getDefaultFileNameForMonaco(getMonacoLanguage(nextLanguageId));
+      const newTab = {
+        id: `tab-${next}`,
+        name: safeName,
+        content: content ?? "",
+        isCustomName,
+        languageId: nextLanguageId,
+        path,
+      };
+      return {
+        tabs: [...state.tabs, newTab],
+        activeTabId: newTab.id,
+        nextTabCounter: next,
+        source: content ?? "",
+        languageId: nextLanguageId,
+        leaderboardTick: (state.leaderboardTick || 0) + 1,
+      };
     }),
   selectTab: (tabId) =>
     set((state) => {
@@ -400,15 +498,26 @@ solve();`, // Default code
       return { activeTabId: tab.id, source: tab.content, languageId: nextLang };
     }),
   updateTabContent: (tabId, content) =>
-    set((state) => ({ tabs: state.tabs.map((t) => (t.id === tabId ? { ...t, content } : t)) })),
+    set((state) => ({
+      tabs: state.tabs.map((t) => (t.id === tabId ? { ...t, content } : t)),
+    })),
   renameTab: (tabId, newName, newPath) =>
-    set((state) => ({ tabs: state.tabs.map((t) => (t.id === tabId ? { ...t, name: newName, isCustomName: true, path: newPath ?? t.path } : t)) })),
+    set((state) => ({
+      tabs: state.tabs.map((t) =>
+        t.id === tabId
+          ? { ...t, name: newName, isCustomName: true, path: newPath ?? t.path }
+          : t,
+      ),
+    })),
   duplicateTab: (tabId) =>
     set((state) => {
       const original = state.tabs.find((t) => t.id === tabId);
       if (!original) return {};
       const next = state.nextTabCounter + 1;
-      const safeBase = (original.name || "untitled").replace(/ Copy( \d+)?(\.[^.]+)?$/, "");
+      const safeBase = (original.name || "untitled").replace(
+        / Copy( \d+)?(\.[^.]+)?$/,
+        "",
+      );
       let candidate = `${safeBase} Copy`;
       const taken = new Set(state.tabs.map((t) => t.name));
       let counter = 1;
@@ -416,8 +525,21 @@ solve();`, // Default code
         counter += 1;
         candidate = `${safeBase} Copy ${counter}`;
       }
-      const duplicated = { id: `tab-${next}`, name: candidate, content: original.content, isCustomName: true, languageId: original.languageId ?? state.languageId };
-      return { tabs: [...state.tabs, duplicated], activeTabId: duplicated.id, nextTabCounter: next, source: duplicated.content, languageId: duplicated.languageId, leaderboardTick: (state.leaderboardTick || 0) + 1 };
+      const duplicated = {
+        id: `tab-${next}`,
+        name: candidate,
+        content: original.content,
+        isCustomName: true,
+        languageId: original.languageId ?? state.languageId,
+      };
+      return {
+        tabs: [...state.tabs, duplicated],
+        activeTabId: duplicated.id,
+        nextTabCounter: next,
+        source: duplicated.content,
+        languageId: duplicated.languageId,
+        leaderboardTick: (state.leaderboardTick || 0) + 1,
+      };
     }),
   closeTab: (tabId) =>
     set((state) => {
@@ -430,28 +552,67 @@ solve();`, // Default code
         const fallback = nextTabs[Math.max(index - 1, 0)];
         nextActive = fallback.id;
       }
-      const activeTab = nextTabs.find((t) => t.id === nextActive) || nextTabs[0];
-      return { tabs: nextTabs, activeTabId: nextActive, source: activeTab.content, languageId: activeTab.languageId ?? state.languageId, leaderboardTick: (state.leaderboardTick || 0) + 1 };
+      const activeTab =
+        nextTabs.find((t) => t.id === nextActive) || nextTabs[0];
+      return {
+        tabs: nextTabs,
+        activeTabId: nextActive,
+        source: activeTab.content,
+        languageId: activeTab.languageId ?? state.languageId,
+        leaderboardTick: (state.leaderboardTick || 0) + 1,
+      };
     }),
   closeOthers: (tabId) =>
     set((state) => {
       const target = state.tabs.find((t) => t.id === tabId) || state.tabs[0];
-      return { tabs: [target], activeTabId: target.id, source: target.content, languageId: target.languageId ?? state.languageId, leaderboardTick: (state.leaderboardTick || 0) + 1 };
+      return {
+        tabs: [target],
+        activeTabId: target.id,
+        source: target.content,
+        languageId: target.languageId ?? state.languageId,
+        leaderboardTick: (state.leaderboardTick || 0) + 1,
+      };
     }),
   closeAll: () =>
     set((state) => {
       const monacoLang = getMonacoLanguage(state.languageId);
       const baseName = getDefaultFileNameForMonaco(monacoLang);
-      const baseTab = { id: "tab-1", name: baseName, content: "", isCustomName: false, languageId: state.languageId };
-      return { tabs: [baseTab], activeTabId: baseTab.id, nextTabCounter: 1, source: "", languageId: state.languageId, leaderboardTick: (state.leaderboardTick || 0) + 1 };
+      const baseTab = {
+        id: "tab-1",
+        name: baseName,
+        content: "",
+        isCustomName: false,
+        languageId: state.languageId,
+      };
+      return {
+        tabs: [baseTab],
+        activeTabId: baseTab.id,
+        nextTabCounter: 1,
+        source: "",
+        languageId: state.languageId,
+        leaderboardTick: (state.leaderboardTick || 0) + 1,
+      };
     }),
   deleteTab: (tabId) =>
     set((state) => {
       if (state.tabs.length === 1 && state.tabs[0].id === tabId) {
         const monacoLang = getMonacoLanguage(state.languageId);
         const baseName = getDefaultFileNameForMonaco(monacoLang);
-        const baseTab = { id: "tab-1", name: baseName, content: "", isCustomName: false, languageId: state.languageId };
-        return { tabs: [baseTab], activeTabId: baseTab.id, nextTabCounter: 1, source: "", languageId: state.languageId, leaderboardTick: (state.leaderboardTick || 0) + 1 };
+        const baseTab = {
+          id: "tab-1",
+          name: baseName,
+          content: "",
+          isCustomName: false,
+          languageId: state.languageId,
+        };
+        return {
+          tabs: [baseTab],
+          activeTabId: baseTab.id,
+          nextTabCounter: 1,
+          source: "",
+          languageId: state.languageId,
+          leaderboardTick: (state.leaderboardTick || 0) + 1,
+        };
       }
       const nextTabs = state.tabs.filter((t) => t.id !== tabId);
       const index = state.tabs.findIndex((t) => t.id === tabId);
@@ -460,21 +621,33 @@ solve();`, // Default code
         const fallback = nextTabs[Math.max(index - 1, 0)];
         nextActive = fallback.id;
       }
-      const activeTab = nextTabs.find((t) => t.id === nextActive) || nextTabs[0];
-      return { tabs: nextTabs, activeTabId: nextActive, source: activeTab.content, languageId: activeTab.languageId ?? state.languageId, leaderboardTick: (state.leaderboardTick || 0) + 1 };
+      const activeTab =
+        nextTabs.find((t) => t.id === nextActive) || nextTabs[0];
+      return {
+        tabs: nextTabs,
+        activeTabId: nextActive,
+        source: activeTab.content,
+        languageId: activeTab.languageId ?? state.languageId,
+        leaderboardTick: (state.leaderboardTick || 0) + 1,
+      };
     }),
   // bump this when an activity occurred that should refresh leaderboard views
-  pokeLeaderboard: () => set((s) => ({ leaderboardTick: (s.leaderboardTick || 0) + 1 })),
-  incrementRunCount: () => set((s) => ({ runCount: (s.runCount || 0) + 1, leaderboardTick: (s.leaderboardTick || 0) + 1 })),
-  
+  pokeLeaderboard: () =>
+    set((s) => ({ leaderboardTick: (s.leaderboardTick || 0) + 1 })),
+  incrementRunCount: () =>
+    set((s) => ({
+      runCount: (s.runCount || 0) + 1,
+      leaderboardTick: (s.leaderboardTick || 0) + 1,
+    })),
+
   // Search and file operations state
   searchQuery: "",
   searchResults: [],
   isSearching: false,
   favorites: (() => {
     try {
-      if (typeof window === 'undefined') return [];
-      const raw = window.localStorage.getItem('esm-favorites');
+      if (typeof window === "undefined") return [];
+      const raw = window.localStorage.getItem("esm-favorites");
       return raw ? JSON.parse(raw) : [];
     } catch {
       return [];
@@ -483,39 +656,41 @@ solve();`, // Default code
   unsavedFiles: {}, // { tabId: true/false } - tracks which tabs have unsaved changes
   isSaving: false,
   saveStatus: null, // 'success', 'error', null
-  
+
   setSearchQuery: (q) => set({ searchQuery: q }),
   setSearchResults: (r) => set({ searchResults: r }),
   setIsSearching: (v) => set({ isSearching: v }),
-  
+
   toggleFavorite: (filePath) => {
     set((state) => {
       const faves = state.favorites || [];
       const isFav = faves.includes(filePath);
-      const updated = isFav ? faves.filter(f => f !== filePath) : [...faves, filePath];
+      const updated = isFav
+        ? faves.filter((f) => f !== filePath)
+        : [...faves, filePath];
       try {
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem('esm-favorites', JSON.stringify(updated));
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("esm-favorites", JSON.stringify(updated));
         }
       } catch {}
       return { favorites: updated };
     });
   },
-  
+
   isFavorite: (filePath) => {
     const state = useCompilerStore.getState();
     return (state.favorites || []).includes(filePath);
   },
-  
+
   setUnsavedFile: (tabId, unsaved) => {
     set((state) => ({
-      unsavedFiles: { ...state.unsavedFiles, [tabId]: unsaved }
+      unsavedFiles: { ...state.unsavedFiles, [tabId]: unsaved },
     }));
   },
-  
+
   setIsSaving: (v) => set({ isSaving: v }),
   setSaveStatus: (s) => set({ saveStatus: s }),
-  
+
   // Jump to a position inside a tab (selects tab then reveals in Monaco)
   goToMatch: async (tabId, lineNumber = 1, column = 1) =>
     set((state) => {

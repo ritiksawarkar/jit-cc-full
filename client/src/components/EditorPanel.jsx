@@ -34,6 +34,7 @@ export default function EditorPanel({ compact = false } = {}) {
     selectTab,
     updateTabContent,
     registerEditor,
+    editorInstance,
     isSaving,
     setIsSaving,
     saveStatus,
@@ -54,6 +55,23 @@ export default function EditorPanel({ compact = false } = {}) {
     () => getMonacoLanguage(languageId),
     [languageId]
   );
+
+  useEffect(() => {
+    if (!monaco?.editor || !editorInstance) {
+      return;
+    }
+
+    const model = editorInstance.getModel?.();
+    if (!model) {
+      return;
+    }
+
+    try {
+      monaco.editor.setModelLanguage(model, monacoLang || "plaintext");
+    } catch (error) {
+      console.error("Failed to sync Monaco language", error);
+    }
+  }, [editorInstance, monaco, monacoLang]);
 
   // Small hello-world snippets per Monaco language to prefill newly-created tabs
   const HELLO_WORLD_SNIPPETS = useMemo(() => ({
@@ -1018,8 +1036,8 @@ export default function EditorPanel({ compact = false } = {}) {
                       type="button"
                       onClick={() => setAiMode("code-only")}
                       className={`rounded-lg border px-3 py-2 text-xs font-semibold tracking-wide transition-colors ${aiMode === "code-only"
-                          ? "border-cyan-400/70 bg-cyan-500/20 text-cyan-100"
-                          : "border-white/15 bg-gray-800/70 text-white/70 hover:bg-gray-700/70"
+                        ? "border-cyan-400/70 bg-cyan-500/20 text-cyan-100"
+                        : "border-white/15 bg-gray-800/70 text-white/70 hover:bg-gray-700/70"
                         }`}
                     >
                       CODE ONLY
@@ -1028,8 +1046,8 @@ export default function EditorPanel({ compact = false } = {}) {
                       type="button"
                       onClick={() => setAiMode("with-explanation")}
                       className={`rounded-lg border px-3 py-2 text-xs font-semibold tracking-wide transition-colors ${aiMode === "with-explanation"
-                          ? "border-cyan-400/70 bg-cyan-500/20 text-cyan-100"
-                          : "border-white/15 bg-gray-800/70 text-white/70 hover:bg-gray-700/70"
+                        ? "border-cyan-400/70 bg-cyan-500/20 text-cyan-100"
+                        : "border-white/15 bg-gray-800/70 text-white/70 hover:bg-gray-700/70"
                         }`}
                     >
                       EXPLAIN

@@ -229,7 +229,7 @@ export default function RunButtons() {
     }
 
     return {
-      language_id: active?.languageId ?? latestState.languageId ?? languageId,
+      language_id: latestState.languageId ?? languageId,
       source_code: active?.content ?? latestState.source ?? source,
       stdin: stdinValue,
     };
