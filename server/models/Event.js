@@ -13,6 +13,12 @@ const eventSchema = new mongoose.Schema(
       default: "",
       maxlength: 2000,
     },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
     startAt: {
       type: Date,
       required: true,
@@ -28,6 +34,17 @@ const eventSchema = new mongoose.Schema(
 );
 
 eventSchema.index({ startAt: 1, endAt: 1 });
+
+eventSchema.virtual("startDate").get(function getStartDate() {
+  return this.startAt;
+});
+
+eventSchema.virtual("endDate").get(function getEndDate() {
+  return this.endAt;
+});
+
+eventSchema.set("toJSON", { virtuals: true });
+eventSchema.set("toObject", { virtuals: true });
 
 const Event = mongoose.model("Event", eventSchema);
 export default Event;

@@ -310,18 +310,19 @@ export async function lockMyProblemSelection(req, res) {
       _id: problemId,
       isActive: true,
     })
-      .select("_id title eventIds")
+      .select("_id title eventId eventIds")
       .lean();
 
     if (!problem) {
       return res.status(404).json({ error: "Problem not found" });
     }
 
-    const eventLinked = Array.isArray(problem.eventIds)
-      ? problem.eventIds.some((id) => String(id) === String(eventId))
-      : false;
+    const linkedEventId = String(
+      problem.eventId ||
+        (Array.isArray(problem.eventIds) ? problem.eventIds[0] : ""),
+    );
 
-    if (!eventLinked) {
+    if (linkedEventId !== String(eventId)) {
       return res.status(422).json({
         error: "Problem is not assigned to this event",
       });

@@ -2,6 +2,7 @@ import React from "react";
 import {
     archiveProblem,
     createProblem,
+    fetchEvents,
     fetchProblemById,
     fetchProblems,
     getMyProblemSelection,
@@ -27,6 +28,7 @@ const EMPTY_FORM = {
     sampleInput: "",
     sampleOutput: "",
     expectedOutput: "Expected output format for hidden tests",
+    eventId: "",
     difficulty: "medium",
     totalPoints: 100,
     passingThreshold: 100,
@@ -89,6 +91,7 @@ export default function ProblemStatementPanel() {
     const [isSaving, setIsSaving] = React.useState(false);
     const [activeProblemMeta, setActiveProblemMeta] = React.useState(null);
     const [adminForm, setAdminForm] = React.useState(EMPTY_FORM);
+    const [problemEvents, setProblemEvents] = React.useState([]);
     const [activeEventId, setActiveEventId] = React.useState(() =>
         resolveEventIdFromClient(),
     );
@@ -115,6 +118,27 @@ export default function ProblemStatementPanel() {
     React.useEffect(() => {
         broadcastStatement(problemStatement);
     }, [problemStatement, broadcastStatement]);
+
+    React.useEffect(() => {
+        if (!isAdmin) return;
+
+        let active = true;
+        (async () => {
+            try {
+                const response = await fetchEvents();
+                if (!active) return;
+                setProblemEvents(Array.isArray(response?.events) ? response.events : []);
+            } catch {
+                if (active) {
+                    setProblemEvents([]);
+                }
+            }
+        })();
+
+        return () => {
+            active = false;
+        };
+    }, [isAdmin]);
 
     React.useEffect(() => {
         const syncEventId = () => {
@@ -148,6 +172,7 @@ export default function ProblemStatementPanel() {
             sampleInput: String(problem?.sampleInput || ""),
             sampleOutput: String(problem?.sampleOutput || ""),
             expectedOutput: String(problem?.expectedOutput || "Expected output format for hidden tests"),
+            eventId: String(problem?.event?.id || problem?.eventId || ""),
             difficulty: String(problem?.difficulty || "medium"),
             totalPoints: Number(problem?.totalPoints || 100),
             passingThreshold: Number(problem?.passingThreshold ?? 100),
@@ -366,8 +391,13 @@ export default function ProblemStatementPanel() {
     const handleAdminSave = async () => {
         if (!isAdmin) return;
         const title = String(adminForm.title || "").trim();
+        const eventId = String(adminForm.eventId || "").trim();
         if (!title) {
             setProblemError("Title is required.");
+            return;
+        }
+        if (!eventId) {
+            setProblemError("Please select an event.");
             return;
         }
 
@@ -384,6 +414,7 @@ export default function ProblemStatementPanel() {
                 expectedOutput:
                     String(adminForm.expectedOutput || "").trim() ||
                     "Expected output format for hidden tests",
+                eventId,
                 difficulty: String(adminForm.difficulty || "medium").toLowerCase(),
                 totalPoints: Number(adminForm.totalPoints || 100),
                 passingThreshold: Number(adminForm.passingThreshold ?? 100),
@@ -565,6 +596,17 @@ export default function ProblemStatementPanel() {
                             <option value="medium">medium</option>
                             <option value="hard">hard</option>
                         </select>
+                        <select
+                            name="eventId"
+                            value={adminForm.eventId}
+                            onChange={onAdminFieldChange}
+                            className="sm:col-span-2 rounded-lg border border-cyan-400/20 bg-gray-900/80 px-2 py-1.5 text-xs text-cyan-100 outline-none focus:border-cyan-300/60"
+                        >
+                            <option value="">Select event</option>
+                            {problemEvents.map((evt) => (
+                                <option key={evt.id} value={evt.id}>{evt.title}</option>
+                            ))}
+                        </select>
                         <input
                             name="sampleInput"
                             value={adminForm.sampleInput}
@@ -672,8 +714,8 @@ export default function ProblemStatementPanel() {
                                             onClick={() => handlePickProblem(item.id)}
                                             disabled={blockedByLock}
                                             className={`w-full rounded-lg border p-3 text-left transition ${isSelected
-                                                    ? "border-cyan-300/70 bg-cyan-500/15"
-                                                    : "border-cyan-500/20 bg-gray-800/70 hover:bg-gray-800"
+                                                ? "border-cyan-300/70 bg-cyan-500/15"
+                                                : "border-cyan-500/20 bg-gray-800/70 hover:bg-gray-800"
                                                 } ${blockedByLock ? "cursor-not-allowed opacity-50" : ""}`}
                                         >
                                             <div className="flex items-center justify-between gap-3">
@@ -722,7 +764,7 @@ export default function ProblemStatementPanel() {
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                         <button
                             type="button"
-                            disabled={isSaving}
+                            disabled={isSaving || !adminForm.eventId}
                             onClick={handleAdminSave}
                             className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-semibold text-black disabled:opacity-70"
                         >

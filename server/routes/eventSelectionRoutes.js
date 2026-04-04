@@ -6,6 +6,12 @@ import {
   lockMyProblemSelection,
   unlockMyProblemSelection,
 } from "../controllers/problemSelectionController.js";
+import {
+  createEvent,
+  getEventById,
+  listEvents,
+} from "../controllers/adminController.js";
+import { listProblemsForEvent } from "../controllers/problemController.js";
 import { requireAuth } from "../middleware/authMiddleware.js";
 import { requireRole } from "../middleware/roleMiddleware.js";
 
@@ -16,6 +22,18 @@ router.post("/join", requireAuth, requireRole("student"), joinEventWithCode);
 
 // GET /api/events/my
 router.get("/my", requireAuth, requireRole("student"), getMyJoinedEvents);
+
+// GET /api/events
+router.get("/", requireAuth, listEvents);
+
+// POST /api/events
+router.post("/", requireAuth, requireRole("admin"), createEvent);
+
+// GET /api/events/:eventId/problems
+router.get("/:eventId/problems", requireAuth, listProblemsForEvent);
+
+// GET /api/events/:eventId
+router.get("/:eventId", requireAuth, getEventById);
 
 // GET /api/events/:eventId/problems/my-selection
 router.get(

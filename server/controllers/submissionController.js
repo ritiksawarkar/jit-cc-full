@@ -411,11 +411,31 @@ export async function submitCode(req, res) {
     }
 
     const problem = await resolveProblem(problemId);
+    if (!problem) {
+      return res.status(404).json({ error: "Problem not found" });
+    }
 
-    let resolvedEventId = null;
+    const problemEventId = String(
+      problem.eventId ||
+        (Array.isArray(problem.eventIds) ? problem.eventIds[0] : ""),
+    );
+
+    if (!problemEventId) {
+      return res
+        .status(400)
+        .json({ error: "Problem is not assigned to an event" });
+    }
+
+    let resolvedEventId = problemEventId;
     if (eventId !== undefined && eventId !== null && String(eventId).trim()) {
       if (!isValidObjectId(eventId)) {
         return res.status(400).json({ error: "Invalid eventId" });
+      }
+
+      if (String(eventId) !== problemEventId) {
+        return res
+          .status(400)
+          .json({ error: "Submission event does not match problem event" });
       }
 
       const event = await Event.findById(eventId)
@@ -425,7 +445,7 @@ export async function submitCode(req, res) {
         return res.status(404).json({ error: "Event not found" });
       }
 
-      resolvedEventId = event._id;
+      resolvedEventId = String(event._id);
 
       if (authenticatedRole !== "admin") {
         const attendance = await EventAttendance.findOne({
@@ -460,6 +480,13 @@ export async function submitCode(req, res) {
             durationSeconds: Math.floor(durationMs / 1000),
           });
         }
+      }
+    } else {
+      const event = await Event.findById(resolvedEventId)
+        .select("_id startAt endAt")
+        .lean();
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
       }
     }
 
