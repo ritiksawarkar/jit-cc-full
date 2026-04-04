@@ -83,10 +83,16 @@ const problemSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    eventIds: {
-      type: [mongoose.Schema.Types.ObjectId],
+    eventId: {
+      type: mongoose.Schema.Types.ObjectId,
       ref: "Event",
-      default: [],
+      required: true,
+      index: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
       index: true,
     },
     isCompetitive: {
@@ -129,7 +135,7 @@ const problemSchema = new mongoose.Schema(
 );
 
 problemSchema.index({ isActive: 1, createdAt: -1 });
-problemSchema.index({ eventIds: 1, isCompetitive: 1 });
+problemSchema.index({ eventId: 1, isCompetitive: 1 });
 
 const Problem = mongoose.model("Problem", problemSchema);
 export default Problem;

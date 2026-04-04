@@ -103,7 +103,11 @@ async function computeLeaderboard(eventId) {
   const [event, submissions, eventProblems, users] = await Promise.all([
     Event.findById(eventId).lean(),
     Submission.find({ eventId }).lean(),
-    Problem.find({ eventIds: eventId, isCompetitive: true, isActive: true })
+    Problem.find({
+      $or: [{ eventId }, { eventIds: eventId }],
+      isCompetitive: true,
+      isActive: true,
+    })
       .select("_id totalPoints passingThreshold title")
       .lean(),
     User.find({}).select("_id name email").lean(),

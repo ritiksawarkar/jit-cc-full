@@ -13,6 +13,7 @@ import {
     fetchAdminCertificateAssets,
     createAdminEvent,
     createEventPrize,
+    fetchEvents,
     fetchProblems,
     deliverPrizeAllocation,
     fetchAdminEventResults,
@@ -63,6 +64,7 @@ const INITIAL_PROBLEM_FORM = {
     sampleInput: "",
     sampleOutput: "",
     expectedOutput: "",
+    eventId: "",
     difficulty: "medium",
     totalPoints: 100,
     passingThreshold: 100,
@@ -82,6 +84,7 @@ function toProblemForm(problem = null) {
         sampleInput: String(problem.sampleInput || ""),
         sampleOutput: String(problem.sampleOutput || ""),
         expectedOutput: String(problem.expectedOutput || ""),
+        eventId: String(problem.event?.id || problem.eventId || ""),
         difficulty: String(problem.difficulty || "medium"),
         totalPoints: Number(problem.totalPoints || 100),
         passingThreshold: Number(problem.passingThreshold ?? 100),
@@ -434,12 +437,15 @@ export default function AdminDashboard() {
     const [problemPageSize, setProblemPageSize] = useState(20);
     const [problemTotalPages, setProblemTotalPages] = useState(0);
     const [problemTotalCount, setProblemTotalCount] = useState(0);
+    const [problemEvents, setProblemEvents] = useState([]);
+    const [problemEventFilter, setProblemEventFilter] = useState("");
     const [editingProblemId, setEditingProblemId] = useState("");
     const [problemForm, setProblemForm] = useState(INITIAL_PROBLEM_FORM);
     const [problemSaving, setProblemSaving] = useState(false);
     const [showBulkImportModal, setShowBulkImportModal] = useState(false);
     const [bulkImportFile, setBulkImportFile] = useState(null);
     const [bulkImportConflictMode, setBulkImportConflictMode] = useState("skip");
+    const [bulkImportEventId, setBulkImportEventId] = useState("");
     const [bulkImportPreview, setBulkImportPreview] = useState([]);
     const [bulkImportLoading, setBulkImportLoading] = useState(false);
     const [bulkImportResults, setBulkImportResults] = useState(null);
@@ -462,11 +468,11 @@ export default function AdminDashboard() {
         }
     };
 
-    const loadProblemBank = async (pageNum = 1, pageSize = 20) => {
+    const loadProblemBank = async (pageNum = 1, pageSize = 20, eventId = problemEventFilter) => {
         setProblemBankLoading(true);
         setProblemBankError("");
         try {
-            const data = await fetchProblems(true, pageNum, pageSize);
+            const data = await fetchProblems(true, pageNum, pageSize, eventId);
             setProblemBank(Array.isArray(data?.problems) ? data.problems : []);
             setProblemTotalCount(data?.total || 0);
             setProblemTotalPages(data?.totalPages || 0);
@@ -480,13 +486,15 @@ export default function AdminDashboard() {
     };
 
     const loadAdminOpsData = async () => {
-        const [attendanceData, studentsData, roleReqData, logsData] = await Promise.all([
+        const [problemEventsData, attendanceData, studentsData, roleReqData, logsData] = await Promise.all([
+            fetchEvents(),
             fetchEventAttendanceSummary(),
             fetchAdminStudents(),
             fetchRoleChangeRequests("pending"),
             fetchAdminAuditLogs(60),
         ]);
 
+        setProblemEvents(Array.isArray(problemEventsData?.events) ? problemEventsData.events : []);
         setAttendanceSummary(attendanceData?.events || []);
         setAdminStudents(studentsData?.students || []);
         setRoleRequests(roleReqData?.requests || []);
@@ -499,9 +507,10 @@ export default function AdminDashboard() {
             try {
                 setLoading(true);
                 setError("");
-                const [overviewData, eventData, attendanceData, studentsData, roleReqData, logsData, problemsData] = await Promise.all([
+                const [overviewData, eventData, allEventsData, attendanceData, studentsData, roleReqData, logsData, problemsData] = await Promise.all([
                     fetchAdminOverview(),
                     fetchAdminEvents("future"),
+                    fetchEvents(),
                     fetchEventAttendanceSummary(),
                     fetchAdminStudents(),
                     fetchRoleChangeRequests("pending"),
@@ -511,6 +520,7 @@ export default function AdminDashboard() {
                 if (!active) return;
                 setOverview(overviewData);
                 setEvents(eventData?.events || []);
+                setProblemEvents(Array.isArray(allEventsData?.events) ? allEventsData.events : []);
                 setAttendanceSummary(attendanceData?.events || []);
                 setAdminStudents(studentsData?.students || []);
                 setRoleRequests(roleReqData?.requests || []);
@@ -577,20 +587,24 @@ export default function AdminDashboard() {
         ];
     }, [overview]);
 
-    // NOTE: Server-side pagination - filters are applied on server
-    // Client simply displays the page returned from server
     const displayedProblems = useMemo(() => {
-        return problemBank || [];
-    }, [problemBank]);
-
-    // When filters change, reset to page 1 and reload
-    useEffect(() => {
-        if (problemSearch || problemDifficultyFilter !== "all" || problemStatusFilter !== "all") {
-            // TODO: Implement server-side filtering
-            // For now, client-side filtering for search/difficulty/status
-            // Full server-side filtering can be added later via query params
-        }
-    }, [problemSearch, problemDifficultyFilter, problemStatusFilter]);
+        const search = String(problemSearch || "").trim().toLowerCase();
+        return (problemBank || []).filter((problem) => {
+            const tags = Array.isArray(problem.tags) ? problem.tags.join(", ") : "";
+            const matchesSearch =
+                !search ||
+                String(problem.title || "").toLowerCase().includes(search) ||
+                String(tags).toLowerCase().includes(search);
+            const matchesDifficulty =
+                problemDifficultyFilter === "all" ||
+                String(problem.difficulty || "").toLowerCase() === problemDifficultyFilter;
+            const matchesStatus =
+                problemStatusFilter === "all" ||
+                (problemStatusFilter === "active" && problem.isActive) ||
+                (problemStatusFilter === "archived" && !problem.isActive);
+            return matchesSearch && matchesDifficulty && matchesStatus;
+        });
+    }, [problemBank, problemDifficultyFilter, problemSearch, problemStatusFilter]);
 
     const handleEventFormChange = (event) => {
         const { name, value } = event.target;
@@ -601,6 +615,13 @@ export default function AdminDashboard() {
         setEventForm({ title: "", description: "", startAt: "", endAt: "" });
         setEditingEventId("");
         setEventError("");
+    };
+
+    const resolveProblemEventTitle = (problem) => {
+        const eventId = String(problem?.event?.id || problem?.eventId || "");
+        const directTitle = String(problem?.event?.title || "").trim();
+        if (directTitle) return directTitle;
+        return problemEvents.find((item) => String(item.id) === eventId)?.title || "Unassigned Event";
     };
 
     const onEditEvent = (eventItem) => {
@@ -637,8 +658,13 @@ export default function AdminDashboard() {
         event.preventDefault();
         const title = String(problemForm.title || "").trim();
         const statement = String(problemForm.statement || "").trim();
+        const eventId = String(problemForm.eventId || "").trim();
         if (!title || !statement) {
             setProblemBankError("Problem title and statement are required.");
+            return;
+        }
+        if (!eventId) {
+            setProblemBankError("Please select an event.");
             return;
         }
 
@@ -648,6 +674,7 @@ export default function AdminDashboard() {
             const payload = {
                 title,
                 statement,
+                eventId,
                 sampleInput: String(problemForm.sampleInput || ""),
                 sampleOutput: String(problemForm.sampleOutput || ""),
                 expectedOutput: String(problemForm.expectedOutput || "").trim() || "Expected output format",
@@ -683,7 +710,7 @@ export default function AdminDashboard() {
                 setQuickMessage("Problem created successfully.");
             }
 
-            await Promise.all([loadProblemBank(1, problemPageSize), loadOverview()]);
+            await Promise.all([loadProblemBank(1, problemPageSize, problemEventFilter), loadOverview()]);
             resetProblemForm();
         } catch (err) {
             setProblemBankError(err?.response?.data?.error || err?.message || "Unable to save problem");
@@ -691,6 +718,28 @@ export default function AdminDashboard() {
             setProblemSaving(false);
         }
     };
+
+    const groupedProblems = useMemo(() => {
+        const groups = new Map();
+
+        for (const problem of displayedProblems) {
+            const eventId = String(problem?.event?.id || problem?.eventId || "");
+            const eventTitle = resolveProblemEventTitle(problem);
+            const key = eventId || eventTitle;
+
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    eventId,
+                    eventTitle,
+                    problems: [],
+                });
+            }
+
+            groups.get(key).problems.push(problem);
+        }
+
+        return Array.from(groups.values());
+    }, [displayedProblems, problemEvents]);
 
     const handleArchiveProblem = async (problemId) => {
         setProblemSaving(true);
@@ -700,7 +749,7 @@ export default function AdminDashboard() {
             if (editingProblemId === String(problemId)) {
                 resetProblemForm();
             }
-            await Promise.all([loadProblemBank(1, problemPageSize), loadOverview()]);
+            await Promise.all([loadProblemBank(1, problemPageSize, problemEventFilter), loadOverview()]);
             setQuickMessage("Problem archived successfully.");
         } catch (err) {
             setProblemBankError(err?.response?.data?.error || err?.message || "Unable to archive problem");
@@ -756,7 +805,18 @@ export default function AdminDashboard() {
                 problems = parseCsvImportFile(content);
             }
 
-            const result = await bulkImportProblems(problems, bulkImportConflictMode);
+            const normalizedProblems = problems.map((problem) => {
+                const eventId = String(problem?.eventId || problem?.event?.id || bulkImportEventId || "").trim();
+                if (!eventId) {
+                    throw new Error("Please select an event for bulk import or include eventId in each record.");
+                }
+                return {
+                    ...problem,
+                    eventId,
+                };
+            });
+
+            const result = await bulkImportProblems(normalizedProblems, bulkImportConflictMode);
             setBulkImportResults(result);
             setQuickMessage(
                 `Import completed: ${result.imported.length} imported, ${result.skipped.length} skipped, ${result.failed.length} failed`,
@@ -769,6 +829,7 @@ export default function AdminDashboard() {
             setTimeout(() => {
                 setShowBulkImportModal(false);
                 setBulkImportFile(null);
+                setBulkImportEventId("");
                 setBulkImportPreview([]);
                 setBulkImportResults(null);
             }, 2000);
@@ -782,6 +843,7 @@ export default function AdminDashboard() {
     const handleBulkImportCancel = () => {
         setShowBulkImportModal(false);
         setBulkImportFile(null);
+        setBulkImportEventId("");
         setBulkImportPreview([]);
         setBulkImportResults(null);
         setProblemBankError("");
@@ -1448,6 +1510,19 @@ export default function AdminDashboard() {
                                     <option value="medium" style={{ color: "#000" }}>medium</option>
                                     <option value="hard" style={{ color: "#000" }}>hard</option>
                                 </select>
+                                <select
+                                    name="eventId"
+                                    value={problemForm.eventId}
+                                    onChange={handleProblemFormChange}
+                                    className="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none"
+                                >
+                                    <option value="" style={{ color: "#000" }}>Select event</option>
+                                    {problemEvents.map((evt) => (
+                                        <option key={evt.id} value={evt.id} style={{ color: "#000" }}>
+                                            {evt.title}
+                                        </option>
+                                    ))}
+                                </select>
                                 <textarea
                                     name="statement"
                                     value={problemForm.statement}
@@ -1526,7 +1601,7 @@ export default function AdminDashboard() {
                                 <div className="sm:col-span-2 flex flex-wrap gap-2">
                                     <button
                                         type="submit"
-                                        disabled={problemSaving}
+                                        disabled={problemSaving || !problemForm.eventId}
                                         className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-black disabled:opacity-70"
                                     >
                                         {problemSaving
@@ -1547,7 +1622,7 @@ export default function AdminDashboard() {
                                 </div>
                             </form>
 
-                            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                            <div className="mt-4 grid gap-2 sm:grid-cols-4">
                                 <input
                                     value={problemSearch}
                                     onChange={(e) => setProblemSearch(e.target.value)}
@@ -1573,6 +1648,22 @@ export default function AdminDashboard() {
                                     <option value="active" style={{ color: "#000" }}>Active only</option>
                                     <option value="archived" style={{ color: "#000" }}>Archived only</option>
                                 </select>
+                                <select
+                                    value={problemEventFilter}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setProblemEventFilter(value);
+                                        void loadProblemBank(1, problemPageSize, value);
+                                    }}
+                                    className="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none"
+                                >
+                                    <option value="" style={{ color: "#000" }}>All events</option>
+                                    {problemEvents.map((evt) => (
+                                        <option key={evt.id} value={evt.id} style={{ color: "#000" }}>
+                                            {evt.title}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
 
                             {problemBankError && (
@@ -1581,65 +1672,85 @@ export default function AdminDashboard() {
                                 </p>
                             )}
 
-                            <div className="mt-4 overflow-x-auto">
-                                <table className="w-full min-w-[940px] text-left text-sm">
-                                    <thead className="text-white/60">
-                                        <tr>
-                                            <th className="py-2 pr-3">Title</th>
-                                            <th className="py-2 pr-3">Difficulty</th>
-                                            <th className="py-2 pr-3">Points</th>
-                                            <th className="py-2 pr-3">Threshold</th>
-                                            <th className="py-2 pr-3">Tags</th>
-                                            <th className="py-2 pr-3">Status</th>
-                                            <th className="py-2 pr-3">Updated</th>
-                                            <th className="py-2 pr-3">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {problemBankLoading ? (
-                                            <tr className="border-t border-white/10">
-                                                <td colSpan={8} className="py-3 text-white/70">Loading problem bank...</td>
-                                            </tr>
-                                        ) : displayedProblems.length === 0 ? (
-                                            <tr className="border-t border-white/10">
-                                                <td colSpan={8} className="py-3 text-white/70">No problems found.</td>
-                                            </tr>
-                                        ) : (
-                                            displayedProblems.map((problem) => (
-                                                <tr key={problem.id} className="border-t border-white/10">
-                                                    <td className="py-2 pr-3 text-white">{problem.title}</td>
-                                                    <td className="py-2 pr-3 text-white/80">{problem.difficulty}</td>
-                                                    <td className="py-2 pr-3 text-white/80">{problem.totalPoints}</td>
-                                                    <td className="py-2 pr-3 text-white/80">{problem.passingThreshold}%</td>
-                                                    <td className="py-2 pr-3 text-white/70">{(problem.tags || []).join(", ") || "-"}</td>
-                                                    <td className="py-2 pr-3 text-white/80">{problem.isActive ? "active" : "archived"}</td>
-                                                    <td className="py-2 pr-3 text-white/70">{fmtDateTime(problem.updatedAt)}</td>
-                                                    <td className="py-2 pr-3">
-                                                        <div className="flex gap-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleEditProblem(problem)}
-                                                                className="rounded border border-cyan-400/40 px-2 py-1 text-xs text-cyan-200"
-                                                            >
-                                                                Edit
-                                                            </button>
-                                                            {problem.isActive && (
-                                                                <button
-                                                                    type="button"
-                                                                    disabled={problemSaving}
-                                                                    onClick={() => handleArchiveProblem(problem.id)}
-                                                                    className="rounded border border-red-400/40 px-2 py-1 text-xs text-red-200 disabled:opacity-70"
-                                                                >
-                                                                    Archive
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
+                            <div className="mt-4 space-y-4">
+                                {problemBankLoading ? (
+                                    <div className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-white/70">
+                                        Loading problem bank...
+                                    </div>
+                                ) : groupedProblems.length === 0 ? (
+                                    <div className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-white/70">
+                                        No problems found.
+                                    </div>
+                                ) : (
+                                    groupedProblems.map((group) => (
+                                        <div key={group.eventId || group.eventTitle} className="rounded-xl border border-white/10 bg-black/30 p-4">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <div>
+                                                    <h3 className="text-sm font-semibold text-white">{group.eventTitle}</h3>
+                                                    <p className="mt-1 text-xs text-white/60">{group.problems.length} problem(s)</p>
+                                                </div>
+                                                {group.eventId && (
+                                                    <span className="rounded border border-white/10 px-2 py-1 text-[11px] text-white/60">
+                                                        {group.eventId}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="mt-3 overflow-x-auto">
+                                                <table className="w-full min-w-[1080px] text-left text-sm">
+                                                    <thead className="text-white/60">
+                                                        <tr>
+                                                            <th className="py-2 pr-3">Event</th>
+                                                            <th className="py-2 pr-3">Title</th>
+                                                            <th className="py-2 pr-3">Difficulty</th>
+                                                            <th className="py-2 pr-3">Points</th>
+                                                            <th className="py-2 pr-3">Threshold</th>
+                                                            <th className="py-2 pr-3">Tags</th>
+                                                            <th className="py-2 pr-3">Status</th>
+                                                            <th className="py-2 pr-3">Updated</th>
+                                                            <th className="py-2 pr-3">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {group.problems.map((problem) => (
+                                                            <tr key={problem.id} className="border-t border-white/10">
+                                                                <td className="py-2 pr-3 text-white/80">{resolveProblemEventTitle(problem)}</td>
+                                                                <td className="py-2 pr-3 text-white">{problem.title}</td>
+                                                                <td className="py-2 pr-3 text-white/80">{problem.difficulty}</td>
+                                                                <td className="py-2 pr-3 text-white/80">{problem.totalPoints}</td>
+                                                                <td className="py-2 pr-3 text-white/80">{problem.passingThreshold}%</td>
+                                                                <td className="py-2 pr-3 text-white/70">{(problem.tags || []).join(", ") || "-"}</td>
+                                                                <td className="py-2 pr-3 text-white/80">{problem.isActive ? "active" : "archived"}</td>
+                                                                <td className="py-2 pr-3 text-white/70">{fmtDateTime(problem.updatedAt)}</td>
+                                                                <td className="py-2 pr-3">
+                                                                    <div className="flex gap-2">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleEditProblem(problem)}
+                                                                            className="rounded border border-cyan-400/40 px-2 py-1 text-xs text-cyan-200"
+                                                                        >
+                                                                            Edit
+                                                                        </button>
+                                                                        {problem.isActive && (
+                                                                            <button
+                                                                                type="button"
+                                                                                disabled={problemSaving}
+                                                                                onClick={() => handleArchiveProblem(problem.id)}
+                                                                                className="rounded border border-red-400/40 px-2 py-1 text-xs text-red-200 disabled:opacity-70"
+                                                                            >
+                                                                                Archive
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
 
                             <div className="mt-3 flex items-center justify-between text-xs text-white/70">
@@ -2981,6 +3092,24 @@ export default function AdminDashboard() {
                                                 onChange={handleBulkImportFile}
                                                 className="mt-2 block w-full text-xs text-white/70"
                                             />
+                                        </label>
+                                    </div>
+
+                                    <div className="mb-4">
+                                        <label className="block">
+                                            <span className="text-xs uppercase tracking-widest text-cyan-300">Default Event</span>
+                                            <select
+                                                value={bulkImportEventId}
+                                                onChange={(e) => setBulkImportEventId(e.target.value)}
+                                                className="mt-2 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none"
+                                            >
+                                                <option value="" style={{ color: "#000" }}>Use eventId from file rows</option>
+                                                {problemEvents.map((evt) => (
+                                                    <option key={evt.id} value={evt.id} style={{ color: "#000" }}>
+                                                        {evt.title}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </label>
                                     </div>
 

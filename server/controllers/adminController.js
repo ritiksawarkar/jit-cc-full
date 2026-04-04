@@ -28,8 +28,8 @@ function parseDateValue(value) {
 function normalizeEventPayload(body = {}) {
   const title = String(body.title || "").trim();
   const description = String(body.description || "").trim();
-  const startAt = parseDateValue(body.startAt);
-  const endAt = parseDateValue(body.endAt);
+  const startAt = parseDateValue(body.startDate || body.startAt);
+  const endAt = parseDateValue(body.endDate || body.endAt);
 
   if (!title) {
     return { error: "Event title is required" };
@@ -56,8 +56,11 @@ function mapEvent(eventDoc) {
     id: String(eventDoc._id),
     title: eventDoc.title,
     description: eventDoc.description || "",
+    startDate: eventDoc.startAt,
+    endDate: eventDoc.endAt,
     startAt: eventDoc.startAt,
     endAt: eventDoc.endAt,
+    createdBy: eventDoc.createdBy ? String(eventDoc.createdBy) : null,
     createdAt: eventDoc.createdAt,
     updatedAt: eventDoc.updatedAt,
   };
@@ -731,7 +734,10 @@ export async function createEvent(req, res) {
       });
     }
 
-    const created = await Event.create(normalized.value);
+    const created = await Event.create({
+      ...normalized.value,
+      createdBy: req.user?.id || req.user?.sub || null,
+    });
     await logAdminAction(req, "event.create", "event", String(created._id), {
       title: created.title,
       startAt: created.startAt,
@@ -741,6 +747,25 @@ export async function createEvent(req, res) {
   } catch (err) {
     console.error("createEvent error:", err);
     return res.status(500).json({ error: "Unable to create event" });
+  }
+}
+
+export async function getEventById(req, res) {
+  try {
+    const { eventId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(String(eventId || ""))) {
+      return res.status(400).json({ error: "Invalid eventId" });
+    }
+
+    const event = await Event.findById(eventId).lean();
+    if (!event) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    return res.json({ event: mapEvent(event) });
+  } catch (err) {
+    console.error("getEventById error:", err);
+    return res.status(500).json({ error: "Unable to fetch event" });
   }
 }
 
@@ -797,6 +822,13 @@ export async function deleteEvent(req, res) {
     const { eventId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(String(eventId || ""))) {
       return res.status(400).json({ error: "Invalid eventId" });
+    }
+
+    const linkedProblems = await Problem.countDocuments({ eventId });
+    if (linkedProblems > 0) {
+      return res.status(409).json({
+        error: "Cannot delete event while problems are linked to it",
+      });
     }
 
     const deleted = await Event.findByIdAndDelete(eventId).lean();

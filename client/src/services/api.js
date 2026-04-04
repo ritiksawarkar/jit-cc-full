@@ -88,11 +88,13 @@ export async function fetchProblems(
   includeInactive = false,
   page = 1,
   limit = 20,
+  eventId = "",
 ) {
   const params = new URLSearchParams();
   if (includeInactive) params.append("includeInactive", "true");
   params.append("page", String(page));
   params.append("limit", String(limit));
+  if (eventId) params.append("eventId", String(eventId));
   const query = params.toString();
   const res = await API.get(`/api/problems?${query}`);
   return res.data;
@@ -132,6 +134,23 @@ export async function joinEventWithCode(eventCode) {
 
 export async function fetchMyEvents() {
   const res = await API.get("/api/events/my");
+  return res.data;
+}
+
+export async function fetchEvents() {
+  const res = await API.get("/api/events");
+  return res.data;
+}
+
+export async function fetchEventById(eventId) {
+  const res = await API.get(`/api/events/${encodeURIComponent(eventId)}`);
+  return res.data;
+}
+
+export async function fetchEventProblems(eventId) {
+  const res = await API.get(
+    `/api/events/${encodeURIComponent(eventId)}/problems`,
+  );
   return res.data;
 }
 

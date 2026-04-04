@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import Event from "../models/Event.js";
 import Problem from "../models/Problem.js";
 
 function isValidObjectId(value) {
@@ -9,6 +10,12 @@ function normalizeOutput(value) {
   return String(value ?? "")
     .replace(/\r\n/g, "\n")
     .trimEnd();
+}
+
+function normalizeTitle(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
 
 function sanitizeTestCases(testCases = [], canViewHidden) {
@@ -51,6 +58,16 @@ function serializeProblem(problemDoc, { canViewHidden = false } = {}) {
       ? problemDoc.toObject()
       : { ...problemDoc };
 
+  const eventDoc =
+    item.eventId && typeof item.eventId === "object" ? item.eventId : null;
+  const fallbackEventId =
+    Array.isArray(item.eventIds) && item.eventIds.length > 0
+      ? item.eventIds[0]
+      : "";
+  const eventId = eventDoc?._id
+    ? String(eventDoc._id)
+    : String(item.eventId || fallbackEventId || "");
+
   return {
     id: String(item._id),
     title: item.title,
@@ -60,10 +77,20 @@ function serializeProblem(problemDoc, { canViewHidden = false } = {}) {
     sampleOutput: item.sampleOutput || "",
     difficulty: item.difficulty || "medium",
     tags: Array.isArray(item.tags) ? item.tags : [],
-    eventIds: Array.isArray(item.eventIds)
-      ? item.eventIds.map((id) => String(id))
-      : [],
+    eventId,
+    event: eventDoc
+      ? {
+          id: String(eventDoc._id),
+          title: eventDoc.title || "",
+          description: eventDoc.description || "",
+          startAt: eventDoc.startAt || null,
+          endAt: eventDoc.endAt || null,
+          createdAt: eventDoc.createdAt || null,
+          updatedAt: eventDoc.updatedAt || null,
+        }
+      : null,
     isCompetitive: Boolean(item.isCompetitive ?? true),
+    createdBy: item.createdBy ? String(item.createdBy) : null,
     totalPoints:
       Number.isFinite(Number(item.totalPoints)) && Number(item.totalPoints) > 0
         ? Number(item.totalPoints)
@@ -92,9 +119,13 @@ function parseProblemPayload(body = {}) {
   const title = String(body.title || "").trim();
   const statement = String(body.statement || "");
   const expectedOutput = normalizeOutput(body.expectedOutput || "");
+  const eventId = String(body.eventId || "").trim();
 
   if (!title) {
     return { error: "title is required" };
+  }
+  if (!eventId) {
+    return { error: "Please select an event" };
   }
 
   const rawCases = Array.isArray(body.testCases) ? body.testCases : [];
@@ -162,12 +193,6 @@ function parseProblemPayload(body = {}) {
     ? body.tags.map((tag) => String(tag || "").trim()).filter(Boolean)
     : [];
 
-  const eventIds = Array.isArray(body.eventIds)
-    ? body.eventIds
-        .map((value) => String(value || "").trim())
-        .filter((value) => isValidObjectId(value))
-    : [];
-
   return {
     value: {
       title: title.slice(0, 200),
@@ -177,7 +202,7 @@ function parseProblemPayload(body = {}) {
       sampleOutput: String(body.sampleOutput || ""),
       difficulty,
       tags,
-      eventIds,
+      eventId,
       isCompetitive:
         body.isCompetitive === undefined ? true : Boolean(body.isCompetitive),
       testCases,
@@ -197,11 +222,23 @@ export async function listProblems(req, res) {
   try {
     const role = String(req.user?.role || "student").toLowerCase();
     const canViewHidden = role === "admin";
+    const eventIdFilter = String(req.query.eventId || "").trim();
+
+    if (eventIdFilter && !isValidObjectId(eventIdFilter)) {
+      return res.status(400).json({ error: "Invalid eventId" });
+    }
 
     const onlyActive =
       req.query.includeInactive === "true" && canViewHidden
         ? {}
         : { isActive: true };
+
+    const query = eventIdFilter
+      ? {
+          ...onlyActive,
+          $or: [{ eventId: eventIdFilter }, { eventIds: eventIdFilter }],
+        }
+      : onlyActive;
 
     // Server-side pagination support
     const page = Math.max(1, Number(req.query.page) || 1);
@@ -209,12 +246,13 @@ export async function listProblems(req, res) {
     const skip = (page - 1) * limit;
 
     const [problems, total] = await Promise.all([
-      Problem.find(onlyActive)
+      Problem.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
+        .populate("eventId", "title description startAt endAt createdBy")
         .lean(),
-      Problem.countDocuments(onlyActive),
+      Problem.countDocuments(query),
     ]);
 
     return res.json({
@@ -233,6 +271,19 @@ export async function listProblems(req, res) {
   }
 }
 
+export async function listProblemsForEvent(req, res) {
+  try {
+    req.query = {
+      ...(req.query || {}),
+      eventId: req.params?.eventId,
+    };
+    return await listProblems(req, res);
+  } catch (err) {
+    console.error("listProblemsForEvent error:", err);
+    return res.status(500).json({ error: "Unable to fetch event problems" });
+  }
+}
+
 export async function getProblemById(req, res) {
   try {
     const { problemId } = req.params;
@@ -243,7 +294,9 @@ export async function getProblemById(req, res) {
       return res.status(400).json({ error: "Invalid problemId" });
     }
 
-    const problem = await Problem.findById(problemId).lean();
+    const problem = await Problem.findById(problemId)
+      .populate("eventId", "title description startAt endAt createdBy")
+      .lean();
     if (!problem) {
       return res.status(404).json({ error: "Problem not found" });
     }
@@ -268,11 +321,47 @@ export async function createProblem(req, res) {
       return res.status(400).json({ error: parsed.error });
     }
 
-    const created = await Problem.create(parsed.value);
+    if (!isValidObjectId(parsed.value.eventId)) {
+      return res.status(400).json({ error: "Invalid event selected" });
+    }
+
+    const event = await Event.findById(parsed.value.eventId)
+      .select("_id title")
+      .lean();
+    if (!event) {
+      return res.status(400).json({ error: "Invalid event selected" });
+    }
+
+    const duplicate = await Problem.findOne({
+      eventId: event._id,
+      title: new RegExp(
+        `^${normalizeTitle(parsed.value.title).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i",
+      ),
+    })
+      .select("_id title")
+      .lean();
+
+    if (duplicate) {
+      return res.status(409).json({
+        error: "Problem already exists for this event",
+      });
+    }
+
+    const created = await Problem.create({
+      ...parsed.value,
+      eventId: event._id,
+      createdBy: req.user?.id || req.user?.sub || null,
+    });
 
     return res.status(201).json({
       message: "Problem created",
-      problem: serializeProblem(created, { canViewHidden: true }),
+      problem: serializeProblem(
+        await Problem.findById(created._id)
+          .populate("eventId", "title description startAt endAt createdBy")
+          .lean(),
+        { canViewHidden: true },
+      ),
     });
   } catch (err) {
     console.error("createProblem error:", err);
@@ -292,6 +381,34 @@ export async function updateProblem(req, res) {
       return res.status(400).json({ error: parsed.error });
     }
 
+    if (!isValidObjectId(parsed.value.eventId)) {
+      return res.status(400).json({ error: "Invalid event selected" });
+    }
+
+    const event = await Event.findById(parsed.value.eventId)
+      .select("_id title")
+      .lean();
+    if (!event) {
+      return res.status(400).json({ error: "Invalid event selected" });
+    }
+
+    const duplicate = await Problem.findOne({
+      eventId: event._id,
+      _id: { $ne: problemId },
+      title: new RegExp(
+        `^${normalizeTitle(parsed.value.title).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i",
+      ),
+    })
+      .select("_id title")
+      .lean();
+
+    if (duplicate) {
+      return res.status(409).json({
+        error: "Problem already exists for this event",
+      });
+    }
+
     const nextVersion =
       Number.isFinite(Number(req.body?.version)) && Number(req.body.version) > 0
         ? Number(req.body.version)
@@ -299,6 +416,7 @@ export async function updateProblem(req, res) {
 
     const update = {
       ...parsed.value,
+      eventId: event._id,
       version: nextVersion,
     };
 
@@ -324,7 +442,12 @@ export async function updateProblem(req, res) {
 
     return res.json({
       message: "Problem updated",
-      problem: serializeProblem(updated, { canViewHidden: true }),
+      problem: serializeProblem(
+        await Problem.findById(updated._id)
+          .populate("eventId", "title description startAt endAt createdBy")
+          .lean(),
+        { canViewHidden: true },
+      ),
     });
   } catch (err) {
     console.error("updateProblem error:", err);
