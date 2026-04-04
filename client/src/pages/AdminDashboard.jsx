@@ -2720,32 +2720,6 @@ export default function AdminDashboard() {
                             </div>
                         </div>
 
-                        <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
-                            <h2 className="text-lg font-semibold">14-Day Activity Trend</h2>
-                            <p className="mt-1 text-sm text-white/70">
-                                Daily submissions and accepted counts for monitoring health.
-                            </p>
-                            <div className="mt-3 overflow-x-auto">
-                                <table className="w-full min-w-[520px] text-left text-sm">
-                                    <thead className="text-white/60">
-                                        <tr>
-                                            <th className="py-2 pr-3">Date</th>
-                                            <th className="py-2 pr-3">Submissions</th>
-                                            <th className="py-2 pr-3">Accepted</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {(overview?.submissions?.trend || []).map((t) => (
-                                            <tr key={t.date} className="border-t border-white/10">
-                                                <td className="py-2 pr-3 text-white/80">{t.date}</td>
-                                                <td className="py-2 pr-3 text-white">{t.submissions}</td>
-                                                <td className="py-2 pr-3 text-white">{t.accepted}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
                     </>
                 )}
 

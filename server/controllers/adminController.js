@@ -20,13 +20,6 @@ function startOfDay(date) {
   return d;
 }
 
-function isoDate(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 function parseDateValue(value) {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
@@ -834,9 +827,6 @@ export async function getAdminOverview(_req, res) {
     const sevenDaysAgo = new Date(todayStart);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
-    const fourteenDaysAgo = new Date(todayStart);
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
-
     const studentsPromise = User.find({ role: "student" })
       .select("name email role createdAt")
       .sort({ createdAt: -1 })
@@ -851,7 +841,6 @@ export async function getAdminOverview(_req, res) {
       statusBreakdownRaw,
       perStudentRaw,
       recentSubmissions,
-      dailyTrendRaw,
       weekActivityCount,
       eventCurrentCount,
       eventPastCount,
@@ -892,26 +881,6 @@ export async function getAdminOverview(_req, res) {
         .populate("userId", "name email role")
         .populate("problemId", "title")
         .lean(),
-      Submission.aggregate([
-        { $match: { createdAt: { $gte: fourteenDaysAgo } } },
-        {
-          $group: {
-            _id: {
-              $dateToString: {
-                format: "%Y-%m-%d",
-                date: "$createdAt",
-              },
-            },
-            submissions: { $sum: 1 },
-            accepted: {
-              $sum: {
-                $cond: [{ $eq: ["$status", "Accepted"] }, 1, 0],
-              },
-            },
-          },
-        },
-        { $sort: { _id: 1 } },
-      ]),
       Submission.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
       Event.countDocuments({ startAt: { $lte: now }, endAt: { $gte: now } }),
       Event.countDocuments({ endAt: { $lt: now } }),
@@ -979,20 +948,6 @@ export async function getAdminOverview(_req, res) {
     const avgDailyRecent = Number((weekActivityCount / 7).toFixed(2));
     const projectedNext7Days = Math.max(1, Math.round(avgDailyRecent * 7));
 
-    const trendMap = new Map(dailyTrendRaw.map((row) => [row._id, row]));
-    const trend = [];
-    for (let i = 0; i < 14; i += 1) {
-      const d = new Date(fourteenDaysAgo);
-      d.setDate(fourteenDaysAgo.getDate() + i);
-      const key = isoDate(d);
-      const row = trendMap.get(key);
-      trend.push({
-        date: key,
-        submissions: row?.submissions || 0,
-        accepted: row?.accepted || 0,
-      });
-    }
-
     return res.json({
       summary: {
         totalStudents: students.length,
@@ -1034,7 +989,6 @@ export async function getAdminOverview(_req, res) {
           futureProjectedCount: projectedNext7Days,
           avgDailyRecent,
         },
-        trend,
       },
       events: {
         history: {
