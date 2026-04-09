@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Event from "../models/Event.js";
 import Problem from "../models/Problem.js";
+import { isProblemExpiredByEvent } from "../services/problemExpiryService.js";
 
 function isValidObjectId(value) {
   return mongoose.Types.ObjectId.isValid(String(value || ""));
@@ -16,6 +17,11 @@ function normalizeTitle(value) {
   return String(value || "")
     .trim()
     .toLowerCase();
+}
+
+function isEventEnded(eventDoc, nowMs = Date.now()) {
+  const endMs = new Date(eventDoc?.endAt || 0).getTime();
+  return Number.isFinite(endMs) && nowMs > endMs;
 }
 
 function sanitizeTestCases(testCases = [], canViewHidden) {
@@ -57,6 +63,7 @@ function serializeProblem(problemDoc, { canViewHidden = false } = {}) {
     typeof problemDoc?.toObject === "function"
       ? problemDoc.toObject()
       : { ...problemDoc };
+  const runtimeExpired = isProblemExpiredByEvent(item);
 
   const eventDoc =
     item.eventId && typeof item.eventId === "object" ? item.eventId : null;
@@ -91,6 +98,8 @@ function serializeProblem(problemDoc, { canViewHidden = false } = {}) {
       : null,
     isCompetitive: Boolean(item.isCompetitive ?? true),
     createdBy: item.createdBy ? String(item.createdBy) : null,
+    isExpired: Boolean(item.isExpired || runtimeExpired),
+    expiredAt: item.expiredAt || null,
     totalPoints:
       Number.isFinite(Number(item.totalPoints)) && Number(item.totalPoints) > 0
         ? Number(item.totalPoints)
@@ -223,6 +232,7 @@ export async function listProblems(req, res) {
     const role = String(req.user?.role || "student").toLowerCase();
     const canViewHidden = role === "admin";
     const eventIdFilter = String(req.query.eventId || "").trim();
+    const includeExpired = req.query.includeExpired === "true" && canViewHidden;
 
     if (eventIdFilter && !isValidObjectId(eventIdFilter)) {
       return res.status(400).json({ error: "Invalid eventId" });
@@ -236,9 +246,13 @@ export async function listProblems(req, res) {
     const query = eventIdFilter
       ? {
           ...onlyActive,
+          ...(includeExpired ? {} : { isExpired: { $ne: true } }),
           $or: [{ eventId: eventIdFilter }, { eventIds: eventIdFilter }],
         }
-      : onlyActive;
+      : {
+          ...onlyActive,
+          ...(includeExpired ? {} : { isExpired: { $ne: true } }),
+        };
 
     // Server-side pagination support
     const page = Math.max(1, Number(req.query.page) || 1);
@@ -255,13 +269,37 @@ export async function listProblems(req, res) {
       Problem.countDocuments(query),
     ]);
 
+    const runtimeNow = new Date();
+    const runtimeExpiredIds = [];
+    const normalizedProblems = problems.filter((problem) => {
+      const runtimeExpired = isProblemExpiredByEvent(problem, runtimeNow);
+      if (runtimeExpired && !problem.isExpired) {
+        runtimeExpiredIds.push(problem._id);
+      }
+      return includeExpired ? true : !runtimeExpired;
+    });
+
+    if (runtimeExpiredIds.length > 0) {
+      await Problem.updateMany(
+        { _id: { $in: runtimeExpiredIds } },
+        {
+          $set: {
+            isExpired: true,
+            expiredAt: runtimeNow,
+          },
+        },
+      );
+    }
+
+    const normalizedTotal = includeExpired ? total : normalizedProblems.length;
+
     return res.json({
-      count: problems.length,
-      total,
+      count: normalizedProblems.length,
+      total: normalizedTotal,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
-      problems: problems.map((problem) =>
+      totalPages: Math.ceil(normalizedTotal / limit),
+      problems: normalizedProblems.map((problem) =>
         serializeProblem(problem, { canViewHidden }),
       ),
     });
@@ -284,6 +322,15 @@ export async function listProblemsForEvent(req, res) {
   }
 }
 
+export async function listAllProblemsForAdmin(req, res) {
+  req.query = {
+    ...(req.query || {}),
+    includeInactive: "true",
+    includeExpired: "true",
+  };
+  return listProblems(req, res);
+}
+
 export async function getProblemById(req, res) {
   try {
     const { problemId } = req.params;
@@ -302,6 +349,26 @@ export async function getProblemById(req, res) {
     }
 
     if (!problem.isActive && !canViewHidden) {
+      return res.status(404).json({ error: "Problem not found" });
+    }
+
+    const runtimeExpired = isProblemExpiredByEvent(problem);
+    if (runtimeExpired && !problem.isExpired) {
+      const expiredAt = new Date();
+      await Problem.updateOne(
+        { _id: problem._id },
+        {
+          $set: {
+            isExpired: true,
+            expiredAt,
+          },
+        },
+      );
+      problem.isExpired = true;
+      problem.expiredAt = expiredAt;
+    }
+
+    if (runtimeExpired && !canViewHidden) {
       return res.status(404).json({ error: "Problem not found" });
     }
 
@@ -326,10 +393,15 @@ export async function createProblem(req, res) {
     }
 
     const event = await Event.findById(parsed.value.eventId)
-      .select("_id title")
+      .select("_id title endAt")
       .lean();
     if (!event) {
       return res.status(400).json({ error: "Invalid event selected" });
+    }
+    if (isEventEnded(event)) {
+      return res.status(422).json({
+        error: "Event has already ended. Cannot add problems.",
+      });
     }
 
     const duplicate = await Problem.findOne({
@@ -381,15 +453,32 @@ export async function updateProblem(req, res) {
       return res.status(400).json({ error: parsed.error });
     }
 
+    const existingProblem = await Problem.findById(problemId)
+      .select("_id isExpired")
+      .lean();
+    if (!existingProblem) {
+      return res.status(404).json({ error: "Problem not found" });
+    }
+    if (Boolean(existingProblem.isExpired)) {
+      return res.status(409).json({
+        error: "Expired problems cannot be edited",
+      });
+    }
+
     if (!isValidObjectId(parsed.value.eventId)) {
       return res.status(400).json({ error: "Invalid event selected" });
     }
 
     const event = await Event.findById(parsed.value.eventId)
-      .select("_id title")
+      .select("_id title endAt")
       .lean();
     if (!event) {
       return res.status(400).json({ error: "Invalid event selected" });
+    }
+    if (isEventEnded(event)) {
+      return res.status(422).json({
+        error: "Event has already ended. Cannot add problems.",
+      });
     }
 
     const duplicate = await Problem.findOne({
@@ -517,8 +606,14 @@ export async function bulkImportProblems(req, res) {
 
         // Parse & validate each row
         const title = String(payload.title || "").trim();
+        const eventId = String(payload.eventId || "").trim();
         if (!title) {
           validationErrors.push("title is required");
+        }
+        if (!eventId) {
+          validationErrors.push("eventId is required");
+        } else if (!isValidObjectId(eventId)) {
+          validationErrors.push("eventId must be a valid ObjectId");
         }
 
         const statement = String(payload.statement || "");
@@ -565,8 +660,32 @@ export async function bulkImportProblems(req, res) {
           continue;
         }
 
+        const event = await Event.findById(eventId).select("_id endAt").lean();
+        if (!event) {
+          results.failed.push({
+            index: i,
+            title: title || `Row ${i + 1}`,
+            errors: ["Invalid event selected"],
+          });
+          continue;
+        }
+        if (isEventEnded(event)) {
+          results.failed.push({
+            index: i,
+            title: title || `Row ${i + 1}`,
+            errors: ["Event has already ended. Cannot add problems."],
+          });
+          continue;
+        }
+
         // Check for existing problem with same title
-        const existing = await Problem.findOne({ title });
+        const existing = await Problem.findOne({
+          title: new RegExp(
+            `^${normalizeTitle(title).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+            "i",
+          ),
+          eventId: event._id,
+        });
 
         if (existing) {
           if (conflictMode === "error") {
@@ -591,6 +710,7 @@ export async function bulkImportProblems(req, res) {
               existing._id,
               {
                 statement,
+                eventId: event._id,
                 difficulty,
                 totalPoints,
                 passingThreshold,
@@ -643,6 +763,7 @@ export async function bulkImportProblems(req, res) {
         const newProblem = await Problem.create({
           title,
           statement,
+          eventId: event._id,
           expectedOutput: "",
           sampleInput: "",
           sampleOutput: "",

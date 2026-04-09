@@ -89,14 +89,30 @@ export async function fetchProblems(
   page = 1,
   limit = 20,
   eventId = "",
+  includeExpired = false,
 ) {
   const params = new URLSearchParams();
   if (includeInactive) params.append("includeInactive", "true");
+  if (includeExpired) params.append("includeExpired", "true");
   params.append("page", String(page));
   params.append("limit", String(limit));
   if (eventId) params.append("eventId", String(eventId));
   const query = params.toString();
   const res = await API.get(`/api/problems?${query}`);
+  return res.data;
+}
+
+export async function fetchAllProblemsForAdmin(
+  page = 1,
+  limit = 20,
+  eventId = "",
+) {
+  const params = new URLSearchParams();
+  params.append("page", String(page));
+  params.append("limit", String(limit));
+  if (eventId) params.append("eventId", String(eventId));
+  const query = params.toString();
+  const res = await API.get(`/api/problems/all?${query}`);
   return res.data;
 }
 
@@ -139,6 +155,16 @@ export async function fetchMyEvents() {
 
 export async function fetchEvents() {
   const res = await API.get("/api/events");
+  return res.data;
+}
+
+export async function updateEventStatus(eventId, status) {
+  const res = await API.patch(
+    `/api/events/${encodeURIComponent(eventId)}/status`,
+    {
+      status,
+    },
+  );
   return res.data;
 }
 
@@ -248,21 +274,6 @@ export async function setStudentFreeze(userId, frozen, reason = "") {
 export async function forceStudentPasswordReset(userId) {
   const res = await API.post(
     `/api/admin/students/${encodeURIComponent(userId)}/force-password-reset`,
-  );
-  return res.data;
-}
-
-export async function fetchRoleChangeRequests(status = "pending") {
-  const res = await API.get(
-    `/api/admin/role-requests?status=${encodeURIComponent(status)}`,
-  );
-  return res.data;
-}
-
-export async function reviewRoleChangeRequest(requestId, payload) {
-  const res = await API.post(
-    `/api/admin/role-requests/${encodeURIComponent(requestId)}/review`,
-    payload,
   );
   return res.data;
 }
@@ -460,11 +471,6 @@ export async function uploadAdminCertificateAsset(key, payload) {
 
 export async function resetAdminCertificateAssets() {
   const res = await API.post("/api/admin/certificate-assets/reset");
-  return res.data;
-}
-
-export async function requestRoleChange(payload) {
-  const res = await API.post("/api/auth/role-requests", payload);
   return res.data;
 }
 

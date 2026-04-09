@@ -5,7 +5,6 @@ import Event from "../models/Event.js";
 import mongoose from "mongoose";
 import crypto from "node:crypto";
 import EventAttendance from "../models/EventAttendance.js";
-import RoleChangeRequest from "../models/RoleChangeRequest.js";
 import AdminAuditLog from "../models/AdminAuditLog.js";
 import {
   notifyAccountFreeze,
@@ -23,6 +22,22 @@ function startOfDay(date) {
 function parseDateValue(value) {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function deriveEventStatus(eventDoc, nowMs = Date.now()) {
+  const startMs = new Date(eventDoc?.startAt || 0).getTime();
+  const endMs = new Date(eventDoc?.endAt || 0).getTime();
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return "upcoming";
+  }
+  if (nowMs > endMs) {
+    return "completed";
+  }
+  if (nowMs >= startMs) {
+    return "active";
+  }
+  return "upcoming";
 }
 
 function normalizeEventPayload(body = {}) {
@@ -52,6 +67,8 @@ function normalizeEventPayload(body = {}) {
 }
 
 function mapEvent(eventDoc) {
+  const status =
+    String(eventDoc?.status || "").trim() || deriveEventStatus(eventDoc);
   return {
     id: String(eventDoc._id),
     title: eventDoc.title,
@@ -60,6 +77,7 @@ function mapEvent(eventDoc) {
     endDate: eventDoc.endAt,
     startAt: eventDoc.startAt,
     endAt: eventDoc.endAt,
+    status,
     createdBy: eventDoc.createdBy ? String(eventDoc.createdBy) : null,
     createdAt: eventDoc.createdAt,
     updatedAt: eventDoc.updatedAt,
@@ -105,34 +123,6 @@ async function logAdminAction(
   } catch (err) {
     console.error("logAdminAction error:", err);
   }
-}
-
-function mapRoleRequest(item) {
-  return {
-    id: String(item._id),
-    currentRole: item.currentRole,
-    requestedRole: item.requestedRole,
-    reason: item.reason || "",
-    status: item.status,
-    createdAt: item.createdAt,
-    reviewedAt: item.reviewedAt,
-    reviewNote: item.reviewNote || "",
-    user: {
-      id: item.userId?._id
-        ? String(item.userId._id)
-        : String(item.userId || ""),
-      name: item.userId?.name || "Unknown",
-      email: item.userId?.email || "",
-      role: item.userId?.role || item.currentRole,
-    },
-    reviewedBy: {
-      id: item.reviewedBy?._id
-        ? String(item.reviewedBy._id)
-        : String(item.reviewedBy || ""),
-      name: item.reviewedBy?.name || "",
-      email: item.reviewedBy?.email || "",
-    },
-  };
 }
 
 async function findEventOverlaps({ startAt, endAt, excludeEventId = null }) {
@@ -282,99 +272,6 @@ export async function forceStudentPasswordReset(req, res) {
   } catch (err) {
     console.error("forceStudentPasswordReset error:", err);
     return res.status(500).json({ error: "Unable to force password reset" });
-  }
-}
-
-export async function listRoleChangeRequests(req, res) {
-  try {
-    const status = String(req.query.status || "pending").toLowerCase();
-    const query = ["pending", "approved", "rejected", "all"].includes(status)
-      ? status
-      : "pending";
-
-    const filter = query === "all" ? {} : { status: query };
-    const items = await RoleChangeRequest.find(filter)
-      .sort({ createdAt: -1 })
-      .populate("userId", "name email role")
-      .populate("reviewedBy", "name email")
-      .lean();
-
-    return res.json({
-      count: items.length,
-      requests: items.map(mapRoleRequest),
-    });
-  } catch (err) {
-    console.error("listRoleChangeRequests error:", err);
-    return res
-      .status(500)
-      .json({ error: "Unable to fetch role change requests" });
-  }
-}
-
-export async function reviewRoleChangeRequest(req, res) {
-  try {
-    const { requestId } = req.params;
-    const decision = String(req.body?.decision || "").toLowerCase();
-    const reviewNote = String(req.body?.reviewNote || "")
-      .trim()
-      .slice(0, 500);
-    const adminId = req.user?.id || req.user?.sub;
-
-    if (!mongoose.Types.ObjectId.isValid(String(requestId || ""))) {
-      return res.status(400).json({ error: "Invalid requestId" });
-    }
-    if (!["approved", "rejected"].includes(decision)) {
-      return res
-        .status(400)
-        .json({ error: "decision must be approved or rejected" });
-    }
-
-    const requestItem = await RoleChangeRequest.findById(requestId);
-    if (!requestItem) {
-      return res.status(404).json({ error: "Role change request not found" });
-    }
-    if (requestItem.status !== "pending") {
-      return res
-        .status(409)
-        .json({ error: "Role change request is already reviewed" });
-    }
-
-    requestItem.status = decision;
-    requestItem.reviewedBy = adminId;
-    requestItem.reviewedAt = new Date();
-    requestItem.reviewNote = reviewNote;
-    await requestItem.save();
-
-    if (decision === "approved") {
-      await User.findByIdAndUpdate(requestItem.userId, {
-        role: requestItem.requestedRole,
-      });
-    }
-
-    await logAdminAction(
-      req,
-      "role_request.review",
-      "role-change-request",
-      requestId,
-      {
-        decision,
-        requestedRole: requestItem.requestedRole,
-        userId: String(requestItem.userId),
-        reviewNote,
-      },
-    );
-
-    const populated = await RoleChangeRequest.findById(requestId)
-      .populate("userId", "name email role")
-      .populate("reviewedBy", "name email")
-      .lean();
-
-    return res.json({ request: mapRoleRequest(populated) });
-  } catch (err) {
-    console.error("reviewRoleChangeRequest error:", err);
-    return res
-      .status(500)
-      .json({ error: "Unable to review role change request" });
   }
 }
 
@@ -814,6 +711,61 @@ export async function updateEvent(req, res) {
   } catch (err) {
     console.error("updateEvent error:", err);
     return res.status(500).json({ error: "Unable to update event" });
+  }
+}
+
+export async function updateEventStatus(req, res) {
+  try {
+    const { eventId } = req.params;
+    const nextStatus = String(req.body?.status || "")
+      .trim()
+      .toLowerCase();
+
+    if (!mongoose.Types.ObjectId.isValid(String(eventId || ""))) {
+      return res.status(400).json({ error: "Invalid eventId" });
+    }
+    if (!["upcoming", "active", "completed"].includes(nextStatus)) {
+      return res.status(400).json({
+        error: "status must be one of upcoming, active, completed",
+      });
+    }
+
+    const updated = await Event.findByIdAndUpdate(
+      eventId,
+      { status: nextStatus },
+      { new: true, runValidators: true },
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    if (nextStatus === "completed") {
+      await Problem.updateMany(
+        { eventId: updated._id, isExpired: { $ne: true } },
+        {
+          $set: {
+            isExpired: true,
+            expiredAt: new Date(),
+          },
+        },
+      );
+    }
+
+    await logAdminAction(
+      req,
+      "event.status.update",
+      "event",
+      String(updated._id),
+      {
+        status: nextStatus,
+      },
+    );
+
+    return res.json({ event: mapEvent(updated) });
+  } catch (err) {
+    console.error("updateEventStatus error:", err);
+    return res.status(500).json({ error: "Unable to update event status" });
   }
 }
 

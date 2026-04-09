@@ -5,6 +5,7 @@ import EventAttendance from "../models/EventAttendance.js";
 import Problem from "../models/Problem.js";
 import ProblemSelection from "../models/ProblemSelection.js";
 import Submission from "../models/Submission.js";
+import { isProblemExpiredByEvent } from "../services/problemExpiryService.js";
 
 function isValidObjectId(value) {
   return mongoose.Types.ObjectId.isValid(String(value || ""));
@@ -309,12 +310,17 @@ export async function lockMyProblemSelection(req, res) {
     const problem = await Problem.findOne({
       _id: problemId,
       isActive: true,
+      isExpired: { $ne: true },
     })
-      .select("_id title eventId eventIds")
+      .select("_id title eventId eventIds isExpired")
+      .populate("eventId", "endAt")
       .lean();
 
     if (!problem) {
       return res.status(404).json({ error: "Problem not found" });
+    }
+    if (isProblemExpiredByEvent(problem)) {
+      return res.status(409).json({ error: "Problem has expired" });
     }
 
     const linkedEventId = String(

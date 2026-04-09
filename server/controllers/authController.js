@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken";
 import crypto from "node:crypto";
 import User from "../models/User.js";
-import RoleChangeRequest from "../models/RoleChangeRequest.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -367,71 +366,5 @@ export async function resetPassword(req, res) {
   } catch (err) {
     console.error("resetPassword error:", err);
     return res.status(500).json({ error: "Unable to reset password" });
-  }
-}
-
-// POST /api/auth/role-requests
-export async function requestRoleChange(req, res) {
-  try {
-    const userId = req.user?.id || req.user?.sub;
-    const requestedRole = String(req.body?.requestedRole || "").toLowerCase();
-    const reason = String(req.body?.reason || "").trim();
-
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    if (!["student", "admin"].includes(requestedRole)) {
-      return res
-        .status(400)
-        .json({ error: "requestedRole must be student or admin" });
-    }
-
-    const user = await User.findById(userId).select("role").lean();
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    if (String(user.role) === requestedRole) {
-      return res
-        .status(400)
-        .json({ error: "Requested role matches current role" });
-    }
-
-    const existingPending = await RoleChangeRequest.findOne({
-      userId,
-      requestedRole,
-      status: "pending",
-    }).lean();
-    if (existingPending) {
-      return res
-        .status(409)
-        .json({ error: "A similar role change request is already pending" });
-    }
-
-    const created = await RoleChangeRequest.create({
-      userId,
-      currentRole: String(user.role),
-      requestedRole,
-      reason: reason.slice(0, 500),
-      status: "pending",
-    });
-
-    return res.status(201).json({
-      request: {
-        id: String(created._id),
-        userId: String(created.userId),
-        currentRole: created.currentRole,
-        requestedRole: created.requestedRole,
-        reason: created.reason,
-        status: created.status,
-        createdAt: created.createdAt,
-      },
-    });
-  } catch (err) {
-    console.error("requestRoleChange error:", err);
-    return res
-      .status(500)
-      .json({ error: "Unable to create role change request" });
   }
 }

@@ -2,6 +2,7 @@ import React from "react";
 import {
     archiveProblem,
     createProblem,
+    fetchAllProblemsForAdmin,
     fetchEvents,
     fetchProblemById,
     fetchProblems,
@@ -98,6 +99,11 @@ export default function ProblemStatementPanel() {
     const [lockedSelection, setLockedSelection] = React.useState(null);
     const [selectionLoading, setSelectionLoading] = React.useState(false);
     const [isProblemPickerOpen, setIsProblemPickerOpen] = React.useState(false);
+
+    const selectableProblemEvents = React.useMemo(
+        () => (problemEvents || []).filter((evt) => String(evt.status || "") !== "completed"),
+        [problemEvents],
+    );
 
     const lockedProblemId = String(lockedSelection?.problemId || "");
     const isStudentEventMode = !isAdmin && Boolean(activeEventId);
@@ -213,7 +219,9 @@ export default function ProblemStatementPanel() {
         try {
             setIsLoadingProblems(true);
             setProblemError("");
-            const response = await fetchProblems(isAdmin);
+            const response = isAdmin
+                ? await fetchAllProblemsForAdmin()
+                : await fetchProblems(false);
             const items = Array.isArray(response?.problems) ? response.problems : [];
             setProblems(items);
 
@@ -603,7 +611,7 @@ export default function ProblemStatementPanel() {
                             className="sm:col-span-2 rounded-lg border border-cyan-400/20 bg-gray-900/80 px-2 py-1.5 text-xs text-cyan-100 outline-none focus:border-cyan-300/60"
                         >
                             <option value="">Select event</option>
-                            {problemEvents.map((evt) => (
+                            {selectableProblemEvents.map((evt) => (
                                 <option key={evt.id} value={evt.id}>{evt.title}</option>
                             ))}
                         </select>
@@ -722,9 +730,20 @@ export default function ProblemStatementPanel() {
                                                 <p className="text-sm font-semibold text-cyan-100">
                                                     {item.title}
                                                 </p>
-                                                <span className="text-[10px] uppercase tracking-wide text-cyan-200/70">
-                                                    {String(item.difficulty || "medium")}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] uppercase tracking-wide text-cyan-200/70">
+                                                        {String(item.difficulty || "medium")}
+                                                    </span>
+                                                    {item.isExpired ? (
+                                                        <span className="rounded bg-red-500/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-red-200">
+                                                            expired
+                                                        </span>
+                                                    ) : (
+                                                        <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-200">
+                                                            active
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                             <p className="mt-1 line-clamp-2 text-xs text-cyan-100/75">
                                                 {String(item.statement || "No statement available")}

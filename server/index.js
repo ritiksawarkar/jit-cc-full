@@ -20,6 +20,10 @@ import { spawn } from "node:child_process";
 import { createJudge0Client } from "./judge0.js";
 import WebSocket, { WebSocketServer } from "ws";
 import { GoogleGenAI } from "@google/genai";
+import {
+  expireProblemsForCompletedEvents,
+  startProblemExpiryScheduler,
+} from "./services/problemExpiryService.js";
 
 const app = express();
 
@@ -1906,6 +1910,12 @@ app.post("/api/settings/root", (req, res) => {
 // Start server
 // --------------------
 await connectDB();
+try {
+  await expireProblemsForCompletedEvents();
+} catch (err) {
+  console.error("Initial problem expiry sweep failed:", err);
+}
+startProblemExpiryScheduler();
 const server = app.listen(PORT, "0.0.0.0", () =>
   console.log(`🚀 Server listening on http://127.0.0.1:${PORT}`),
 );

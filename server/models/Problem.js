@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import Event from "./Event.js";
 
 const testCaseSchema = new mongoose.Schema(
   {
@@ -125,6 +126,16 @@ const problemSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+    isExpired: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    expiredAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     version: {
       type: Number,
       default: 1,
@@ -136,6 +147,38 @@ const problemSchema = new mongoose.Schema(
 
 problemSchema.index({ isActive: 1, createdAt: -1 });
 problemSchema.index({ eventId: 1, isCompetitive: 1 });
+problemSchema.index({ eventId: 1, isExpired: 1 });
+
+problemSchema.pre("validate", async function preventCreationOnEndedEvent(next) {
+  try {
+    if (!this.isNew) {
+      return next();
+    }
+
+    const eventId = this.eventId;
+    if (!eventId) {
+      return next();
+    }
+
+    const event = await Event.findById(eventId).select("endAt").lean();
+    if (!event) {
+      this.invalidate("eventId", "Invalid event selected");
+      return next();
+    }
+
+    const endMs = new Date(event.endAt || 0).getTime();
+    if (Number.isFinite(endMs) && Date.now() > endMs) {
+      this.invalidate(
+        "eventId",
+        "Event has already ended. Cannot add problems.",
+      );
+    }
+
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+});
 
 const Problem = mongoose.model("Problem", problemSchema);
 export default Problem;
