@@ -11,11 +11,10 @@ import {
   getEventAttendanceSummary,
   getStudentsForAdmin,
   listEvents,
-  listRoleChangeRequests,
-  reviewRoleChangeRequest,
   setStudentFreezeState,
   upsertEventAttendance,
   updateEvent,
+  updateEventStatus,
 } from "../controllers/adminController.js";
 import {
   archiveProblem,
@@ -46,6 +45,7 @@ import {
   adminUnlockProblemSelection,
   listEventProblemSelections,
 } from "../controllers/problemSelectionController.js";
+import { requireActiveEventForProblemMutation } from "../middleware/problemLifecycleMiddleware.js";
 
 const router = Router();
 
@@ -60,6 +60,14 @@ router.post("/events", requireAuth, requireRole("admin"), createEvent);
 
 // PUT /api/admin/events/:eventId
 router.put("/events/:eventId", requireAuth, requireRole("admin"), updateEvent);
+
+// PATCH /api/admin/events/:eventId/status
+router.patch(
+  "/events/:eventId/status",
+  requireAuth,
+  requireRole("admin"),
+  updateEventStatus,
+);
 
 // DELETE /api/admin/events/:eventId
 router.delete(
@@ -112,33 +120,24 @@ router.post(
   forceStudentPasswordReset,
 );
 
-// GET /api/admin/role-requests
-router.get(
-  "/role-requests",
-  requireAuth,
-  requireRole("admin"),
-  listRoleChangeRequests,
-);
-
-// POST /api/admin/role-requests/:requestId/review
-router.post(
-  "/role-requests/:requestId/review",
-  requireAuth,
-  requireRole("admin"),
-  reviewRoleChangeRequest,
-);
-
 // GET /api/admin/audit-logs?limit=50
 router.get("/audit-logs", requireAuth, requireRole("admin"), getAdminAuditLogs);
 
 // POST /api/admin/problems
-router.post("/problems", requireAuth, requireRole("admin"), createProblem);
+router.post(
+  "/problems",
+  requireAuth,
+  requireRole("admin"),
+  requireActiveEventForProblemMutation,
+  createProblem,
+);
 
 // PUT /api/admin/problems/:problemId
 router.put(
   "/problems/:problemId",
   requireAuth,
   requireRole("admin"),
+  requireActiveEventForProblemMutation,
   updateProblem,
 );
 

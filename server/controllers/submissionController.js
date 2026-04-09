@@ -10,6 +10,7 @@ import {
   notifySubmissionFailed,
   notifySubmissionError,
 } from "../services/notificationService.js";
+import { isProblemExpiredByEvent } from "../services/problemExpiryService.js";
 
 const HOST = process.env.JUDGE0_HOST;
 const KEY = process.env.JUDGE0_API_KEY;
@@ -121,31 +122,7 @@ async function resolveProblem(problemId) {
     }
   }
 
-  // Fallback problem avoids blocking submission when user has no configured problem ID.
-  let fallback = await Problem.findOne({
-    title: "Default Submission Problem",
-  }).lean();
-  if (fallback) {
-    return fallback;
-  }
-
-  const created = await Problem.create({
-    title: "Default Submission Problem",
-    statement: "Auto-generated fallback problem for ad-hoc submissions.",
-    expectedOutput: "__DEFAULT_EXPECTED_OUTPUT__",
-    testCases: [
-      {
-        name: "Default",
-        input: "",
-        expectedOutput: "__DEFAULT_EXPECTED_OUTPUT__",
-        isHidden: false,
-      },
-    ],
-    totalPoints: 100,
-    passingThreshold: 100,
-  });
-
-  return created.toObject();
+  return null;
 }
 
 function normalizeProblemTestCases(problem, fallbackInput = "") {
@@ -414,6 +391,23 @@ export async function submitCode(req, res) {
     if (!problem) {
       return res.status(404).json({ error: "Problem not found" });
     }
+    const runtimeExpired = isProblemExpiredByEvent(problem);
+    if (Boolean(problem.isExpired) || runtimeExpired) {
+      if (runtimeExpired && !problem.isExpired && problem._id) {
+        await Problem.updateOne(
+          { _id: problem._id },
+          {
+            $set: {
+              isExpired: true,
+              expiredAt: new Date(),
+            },
+          },
+        );
+      }
+      return res.status(409).json({
+        error: "Problem has expired. Submissions are closed.",
+      });
+    }
 
     const problemEventId = String(
       problem.eventId ||
@@ -443,6 +437,12 @@ export async function submitCode(req, res) {
         .lean();
       if (!event) {
         return res.status(404).json({ error: "Event not found" });
+      }
+
+      if (Date.now() > new Date(event.endAt || 0).getTime()) {
+        return res.status(403).json({
+          error: "Event has ended. Submissions are closed.",
+        });
       }
 
       resolvedEventId = String(event._id);
@@ -487,6 +487,11 @@ export async function submitCode(req, res) {
         .lean();
       if (!event) {
         return res.status(404).json({ error: "Event not found" });
+      }
+      if (Date.now() > new Date(event.endAt || 0).getTime()) {
+        return res.status(403).json({
+          error: "Event has ended. Submissions are closed.",
+        });
       }
     }
 

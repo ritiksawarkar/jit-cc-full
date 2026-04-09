@@ -76,7 +76,26 @@ Default API URL:
 
 - `npm run seed:admin`
 - `npm run seed:demo-certificate`
+- `npm run seed:sample-data`
+  - Seeds 5 demo users with real Indian names:
+    - **Admin**: Rajesh Sharma (rajesh.sharma@jit.local)
+    - **Students**: Priya Verma, Arjun Gupta, Neha Singh, Aditya Patel (emails: firstname.lastname@jit.local)
+    - Password for all: `Demo@12345`
+  - Optional: set `SEED_EVENT_ID=<eventObjectId>` to seed into a specific existing event and auto-join demo students to it.
+  - Optional: set `SEED_FUTURE_EVENTS_COUNT=<0..5>` (default `2`) to seed upcoming events with Indian event names (CodeJourney India, DevChallenge Bharat, Algorithm Arena, TechSprint India, CodeMaster Challenge).
+  - Demo students are auto-assigned and auto-locked one problem each for direct submission flow testing.
+  - Also seeds 1 mock submission per demo student (Accepted/Wrong Answer mix) for instant leaderboard/result testing.
+  - Automatically computes and upserts a draft event leaderboard (participants/submissions/problems stats + ranked entries).
+  - Seeds prize setup with INR amounts + allocation demo records (allocated/claimed/delivered mix) from the generated leaderboard.
+  - Creates professional certificate template with placeholder variables ({{userName}}, {{rank}}, {{eventTitle}}, etc.) and issues certificates for all leaderboard participants with unique cert numbers and verification codes.
+  - Seeds 10 realistic admin audit log entries (event creation/updates, problem operations, approvals, leaderboard finalization, certificate issuance, student freezes, exports) with staggered timestamps and rich metadata.
 - `npm run seed:jit-hackathon`
+- `npm run cleanup:old-demo`
+  - Removes all old demo user accounts (demo.admin, student.one/two/three/four @ jit.local) and all their related data (submissions, certificates, prize allocations, event attendance, audit logs, etc.).
+  - Use this after migrating to new Indian user names to clean up legacy test data.
+  - Total: 82 records deleted (5 users + 77 related records).
+- `npm run purge:role-requests`
+  - Removes legacy role change request records and drops the collection when present. Set `CONFIRM_ROLE_REQUEST_PURGE=YES` before running.
 
 ## API Overview
 
@@ -93,7 +112,6 @@ Default API URL:
 - `POST /api/auth/login`
 - `POST /api/auth/forgot-password`
 - `POST /api/auth/reset-password`
-- `POST /api/auth/role-requests`
 - `GET /api/auth/me`
 - `GET /api/auth/admin/check`
 

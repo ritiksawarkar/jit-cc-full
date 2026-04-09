@@ -10,6 +10,7 @@ import {
   createEvent,
   getEventById,
   listEvents,
+  updateEventStatus,
 } from "../controllers/adminController.js";
 import { listProblemsForEvent } from "../controllers/problemController.js";
 import { requireAuth } from "../middleware/authMiddleware.js";
@@ -34,6 +35,14 @@ router.get("/:eventId/problems", requireAuth, listProblemsForEvent);
 
 // GET /api/events/:eventId
 router.get("/:eventId", requireAuth, getEventById);
+
+// PATCH /api/events/:eventId/status
+router.patch(
+  "/:eventId/status",
+  requireAuth,
+  requireRole("admin"),
+  updateEventStatus,
+);
 
 // GET /api/events/:eventId/problems/my-selection
 router.get(

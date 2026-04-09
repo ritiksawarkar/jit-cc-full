@@ -29,11 +29,37 @@ const eventSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    status: {
+      type: String,
+      enum: ["upcoming", "active", "completed"],
+      default: "upcoming",
+      index: true,
+    },
   },
   { timestamps: true },
 );
 
 eventSchema.index({ startAt: 1, endAt: 1 });
+
+eventSchema.pre("validate", function setDerivedStatus(next) {
+  const nowMs = Date.now();
+  const startMs = new Date(this.startAt || 0).getTime();
+  const endMs = new Date(this.endAt || 0).getTime();
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return next();
+  }
+
+  if (nowMs > endMs) {
+    this.status = "completed";
+  } else if (nowMs >= startMs) {
+    this.status = "active";
+  } else {
+    this.status = "upcoming";
+  }
+
+  return next();
+});
 
 eventSchema.virtual("startDate").get(function getStartDate() {
   return this.startAt;

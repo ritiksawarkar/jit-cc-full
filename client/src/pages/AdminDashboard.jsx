@@ -14,7 +14,7 @@ import {
     createAdminEvent,
     createEventPrize,
     fetchEvents,
-    fetchProblems,
+    fetchAllProblemsForAdmin,
     deliverPrizeAllocation,
     fetchAdminEventResults,
     fetchUserSubmissions,
@@ -29,12 +29,10 @@ import {
     fetchAdminEventProblemSelections,
     fetchAdminOverview,
     fetchEventAttendanceSummary,
-    fetchRoleChangeRequests,
     finalizeAdminEventResults,
     forceStudentPasswordReset,
     issueEventCertificates,
     resetAdminCertificateAssets,
-    reviewRoleChangeRequest,
     setStudentFreeze,
     uploadAdminCertificateAsset,
     upsertEventAttendance,
@@ -143,6 +141,46 @@ function fmtEventDuration(startAt, endAt) {
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
     return `${hours}h ${minutes}m`;
+}
+
+function formatCountdown(endAt, nowMs) {
+    const endMs = new Date(endAt || 0).getTime();
+    if (!Number.isFinite(endMs)) return "-";
+    const diff = endMs - nowMs;
+    if (diff <= 0) return "Ended";
+
+    const totalSeconds = Math.floor(diff / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (days > 0) {
+        return `${days}d ${hours}h ${minutes}m`;
+    }
+    return `${hours}h ${minutes}m ${seconds}s`;
+}
+
+function groupProblemsByEvent(problems, resolveEventTitle) {
+    const groups = new Map();
+
+    for (const problem of problems || []) {
+        const eventId = String(problem?.event?.id || problem?.eventId || "");
+        const eventTitle = resolveEventTitle(problem);
+        const key = eventId || eventTitle;
+
+        if (!groups.has(key)) {
+            groups.set(key, {
+                eventId,
+                eventTitle,
+                problems: [],
+            });
+        }
+
+        groups.get(key).problems.push(problem);
+    }
+
+    return Array.from(groups.values());
 }
 
 async function parseFileContent(file) {
@@ -369,7 +407,6 @@ export default function AdminDashboard() {
     const [attendanceUserId, setAttendanceUserId] = useState("");
     const [attendanceStatus, setAttendanceStatus] = useState("registered");
     const [adminStudents, setAdminStudents] = useState([]);
-    const [roleRequests, setRoleRequests] = useState([]);
     const [auditLogs, setAuditLogs] = useState([]);
     const [quickMessage, setQuickMessage] = useState("");
     const [quickError, setQuickError] = useState("");
@@ -449,6 +486,7 @@ export default function AdminDashboard() {
     const [bulkImportPreview, setBulkImportPreview] = useState([]);
     const [bulkImportLoading, setBulkImportLoading] = useState(false);
     const [bulkImportResults, setBulkImportResults] = useState(null);
+    const [clockMs, setClockMs] = useState(Date.now());
 
     const loadOverview = async () => {
         const data = await fetchAdminOverview();
@@ -472,7 +510,7 @@ export default function AdminDashboard() {
         setProblemBankLoading(true);
         setProblemBankError("");
         try {
-            const data = await fetchProblems(true, pageNum, pageSize, eventId);
+            const data = await fetchAllProblemsForAdmin(pageNum, pageSize, eventId);
             setProblemBank(Array.isArray(data?.problems) ? data.problems : []);
             setProblemTotalCount(data?.total || 0);
             setProblemTotalPages(data?.totalPages || 0);
@@ -486,18 +524,16 @@ export default function AdminDashboard() {
     };
 
     const loadAdminOpsData = async () => {
-        const [problemEventsData, attendanceData, studentsData, roleReqData, logsData] = await Promise.all([
+        const [problemEventsData, attendanceData, studentsData, logsData] = await Promise.all([
             fetchEvents(),
             fetchEventAttendanceSummary(),
             fetchAdminStudents(),
-            fetchRoleChangeRequests("pending"),
             fetchAdminAuditLogs(60),
         ]);
 
         setProblemEvents(Array.isArray(problemEventsData?.events) ? problemEventsData.events : []);
         setAttendanceSummary(attendanceData?.events || []);
         setAdminStudents(studentsData?.students || []);
-        setRoleRequests(roleReqData?.requests || []);
         setAuditLogs(logsData?.logs || []);
     };
 
@@ -507,15 +543,14 @@ export default function AdminDashboard() {
             try {
                 setLoading(true);
                 setError("");
-                const [overviewData, eventData, allEventsData, attendanceData, studentsData, roleReqData, logsData, problemsData] = await Promise.all([
+                const [overviewData, eventData, allEventsData, attendanceData, studentsData, logsData, problemsData] = await Promise.all([
                     fetchAdminOverview(),
                     fetchAdminEvents("future"),
                     fetchEvents(),
                     fetchEventAttendanceSummary(),
                     fetchAdminStudents(),
-                    fetchRoleChangeRequests("pending"),
                     fetchAdminAuditLogs(60),
-                    fetchProblems(true),
+                    fetchAllProblemsForAdmin(),
                 ]);
                 if (!active) return;
                 setOverview(overviewData);
@@ -523,7 +558,6 @@ export default function AdminDashboard() {
                 setProblemEvents(Array.isArray(allEventsData?.events) ? allEventsData.events : []);
                 setAttendanceSummary(attendanceData?.events || []);
                 setAdminStudents(studentsData?.students || []);
-                setRoleRequests(roleReqData?.requests || []);
                 setAuditLogs(logsData?.logs || []);
                 setProblemBank(Array.isArray(problemsData?.problems) ? problemsData.problems : []);
             } catch (err) {
@@ -544,6 +578,27 @@ export default function AdminDashboard() {
         loadEvents(eventScope);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [eventScope]);
+
+    useEffect(() => {
+        const tick = window.setInterval(() => {
+            setClockMs(Date.now());
+        }, 1000);
+        return () => window.clearInterval(tick);
+    }, []);
+
+    useEffect(() => {
+        const refresh = window.setInterval(() => {
+            void loadEvents(eventScope);
+            void loadProblemBank(problemPage, problemPageSize, problemEventFilter);
+        }, 30000);
+        return () => window.clearInterval(refresh);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [eventScope, problemPage, problemPageSize, problemEventFilter]);
+
+    const selectableProblemEvents = useMemo(
+        () => (problemEvents || []).filter((evt) => String(evt.status || "") !== "completed"),
+        [problemEvents],
+    );
 
     useEffect(() => {
         if (!events.length) {
@@ -719,27 +774,21 @@ export default function AdminDashboard() {
         }
     };
 
-    const groupedProblems = useMemo(() => {
-        const groups = new Map();
+    const activeGroupedProblems = useMemo(
+        () => groupProblemsByEvent(
+            displayedProblems.filter((problem) => !problem.isExpired),
+            resolveProblemEventTitle,
+        ),
+        [displayedProblems, problemEvents],
+    );
 
-        for (const problem of displayedProblems) {
-            const eventId = String(problem?.event?.id || problem?.eventId || "");
-            const eventTitle = resolveProblemEventTitle(problem);
-            const key = eventId || eventTitle;
-
-            if (!groups.has(key)) {
-                groups.set(key, {
-                    eventId,
-                    eventTitle,
-                    problems: [],
-                });
-            }
-
-            groups.get(key).problems.push(problem);
-        }
-
-        return Array.from(groups.values());
-    }, [displayedProblems, problemEvents]);
+    const expiredGroupedProblems = useMemo(
+        () => groupProblemsByEvent(
+            displayedProblems.filter((problem) => problem.isExpired),
+            resolveProblemEventTitle,
+        ),
+        [displayedProblems, problemEvents],
+    );
 
     const handleArchiveProblem = async (problemId) => {
         setProblemSaving(true);
@@ -958,18 +1007,6 @@ export default function AdminDashboard() {
             setQuickMessage(`Temp password for ${student.email}: ${data?.tempPassword || "generated"}`);
         } catch (err) {
             setQuickError(err?.response?.data?.error || err?.message || "Unable to force password reset");
-        }
-    };
-
-    const handleReviewRoleRequest = async (requestId, decision) => {
-        try {
-            setQuickError("");
-            setQuickMessage("");
-            await reviewRoleChangeRequest(requestId, { decision });
-            await Promise.all([loadOverview(), loadAdminOpsData()]);
-            setQuickMessage(`Role request ${decision}.`);
-        } catch (err) {
-            setQuickError(err?.response?.data?.error || err?.message || "Unable to review role request");
         }
     };
 
@@ -1517,7 +1554,7 @@ export default function AdminDashboard() {
                                     className="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none"
                                 >
                                     <option value="" style={{ color: "#000" }}>Select event</option>
-                                    {problemEvents.map((evt) => (
+                                    {selectableProblemEvents.map((evt) => (
                                         <option key={evt.id} value={evt.id} style={{ color: "#000" }}>
                                             {evt.title}
                                         </option>
@@ -1677,79 +1714,114 @@ export default function AdminDashboard() {
                                     <div className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-white/70">
                                         Loading problem bank...
                                     </div>
-                                ) : groupedProblems.length === 0 ? (
+                                ) : activeGroupedProblems.length === 0 && expiredGroupedProblems.length === 0 ? (
                                     <div className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-white/70">
                                         No problems found.
                                     </div>
                                 ) : (
-                                    groupedProblems.map((group) => (
-                                        <div key={group.eventId || group.eventTitle} className="rounded-xl border border-white/10 bg-black/30 p-4">
-                                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                                <div>
-                                                    <h3 className="text-sm font-semibold text-white">{group.eventTitle}</h3>
-                                                    <p className="mt-1 text-xs text-white/60">{group.problems.length} problem(s)</p>
+                                    <>
+                                        {activeGroupedProblems.length > 0 && (
+                                            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-200">
+                                                Active Problems
+                                            </div>
+                                        )}
+                                        {activeGroupedProblems.map((group) => (
+                                            <div key={`active-${group.eventId || group.eventTitle}`} className="rounded-xl border border-white/10 bg-black/30 p-4">
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                    <div>
+                                                        <h3 className="text-sm font-semibold text-white">{group.eventTitle}</h3>
+                                                        <p className="mt-1 text-xs text-white/60">{group.problems.length} problem(s)</p>
+                                                    </div>
+                                                    {group.eventId && (
+                                                        <span className="rounded border border-white/10 px-2 py-1 text-[11px] text-white/60">{group.eventId}</span>
+                                                    )}
                                                 </div>
-                                                {group.eventId && (
-                                                    <span className="rounded border border-white/10 px-2 py-1 text-[11px] text-white/60">
-                                                        {group.eventId}
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <div className="mt-3 overflow-x-auto">
-                                                <table className="w-full min-w-[1080px] text-left text-sm">
-                                                    <thead className="text-white/60">
-                                                        <tr>
-                                                            <th className="py-2 pr-3">Event</th>
-                                                            <th className="py-2 pr-3">Title</th>
-                                                            <th className="py-2 pr-3">Difficulty</th>
-                                                            <th className="py-2 pr-3">Points</th>
-                                                            <th className="py-2 pr-3">Threshold</th>
-                                                            <th className="py-2 pr-3">Tags</th>
-                                                            <th className="py-2 pr-3">Status</th>
-                                                            <th className="py-2 pr-3">Updated</th>
-                                                            <th className="py-2 pr-3">Actions</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {group.problems.map((problem) => (
-                                                            <tr key={problem.id} className="border-t border-white/10">
-                                                                <td className="py-2 pr-3 text-white/80">{resolveProblemEventTitle(problem)}</td>
-                                                                <td className="py-2 pr-3 text-white">{problem.title}</td>
-                                                                <td className="py-2 pr-3 text-white/80">{problem.difficulty}</td>
-                                                                <td className="py-2 pr-3 text-white/80">{problem.totalPoints}</td>
-                                                                <td className="py-2 pr-3 text-white/80">{problem.passingThreshold}%</td>
-                                                                <td className="py-2 pr-3 text-white/70">{(problem.tags || []).join(", ") || "-"}</td>
-                                                                <td className="py-2 pr-3 text-white/80">{problem.isActive ? "active" : "archived"}</td>
-                                                                <td className="py-2 pr-3 text-white/70">{fmtDateTime(problem.updatedAt)}</td>
-                                                                <td className="py-2 pr-3">
-                                                                    <div className="flex gap-2">
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => handleEditProblem(problem)}
-                                                                            className="rounded border border-cyan-400/40 px-2 py-1 text-xs text-cyan-200"
-                                                                        >
-                                                                            Edit
-                                                                        </button>
-                                                                        {problem.isActive && (
-                                                                            <button
-                                                                                type="button"
-                                                                                disabled={problemSaving}
-                                                                                onClick={() => handleArchiveProblem(problem.id)}
-                                                                                className="rounded border border-red-400/40 px-2 py-1 text-xs text-red-200 disabled:opacity-70"
-                                                                            >
-                                                                                Archive
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                </td>
+                                                <div className="mt-3 overflow-x-auto">
+                                                    <table className="w-full min-w-[1080px] text-left text-sm">
+                                                        <thead className="text-white/60">
+                                                            <tr>
+                                                                <th className="py-2 pr-3">Event</th>
+                                                                <th className="py-2 pr-3">Title</th>
+                                                                <th className="py-2 pr-3">Difficulty</th>
+                                                                <th className="py-2 pr-3">Points</th>
+                                                                <th className="py-2 pr-3">Threshold</th>
+                                                                <th className="py-2 pr-3">Tags</th>
+                                                                <th className="py-2 pr-3">Status</th>
+                                                                <th className="py-2 pr-3">Updated</th>
+                                                                <th className="py-2 pr-3">Actions</th>
                                                             </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
+                                                        </thead>
+                                                        <tbody>
+                                                            {group.problems.map((problem) => (
+                                                                <tr key={problem.id} className="border-t border-white/10">
+                                                                    <td className="py-2 pr-3 text-white/80">{resolveProblemEventTitle(problem)}</td>
+                                                                    <td className="py-2 pr-3 text-white">{problem.title}</td>
+                                                                    <td className="py-2 pr-3 text-white/80">{problem.difficulty}</td>
+                                                                    <td className="py-2 pr-3 text-white/80">{problem.totalPoints}</td>
+                                                                    <td className="py-2 pr-3 text-white/80">{problem.passingThreshold}%</td>
+                                                                    <td className="py-2 pr-3 text-white/70">{(problem.tags || []).join(", ") || "-"}</td>
+                                                                    <td className="py-2 pr-3 text-white/80"><span className="rounded bg-emerald-500/20 px-2 py-1 text-[11px] text-emerald-200">Active</span></td>
+                                                                    <td className="py-2 pr-3 text-white/70">{fmtDateTime(problem.updatedAt)}</td>
+                                                                    <td className="py-2 pr-3">
+                                                                        <div className="flex gap-2">
+                                                                            <button type="button" onClick={() => handleEditProblem(problem)} className="rounded border border-cyan-400/40 px-2 py-1 text-xs text-cyan-200">Edit</button>
+                                                                            {problem.isActive && (
+                                                                                <button type="button" disabled={problemSaving} onClick={() => handleArchiveProblem(problem.id)} className="rounded border border-red-400/40 px-2 py-1 text-xs text-red-200 disabled:opacity-70">Archive</button>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))
+                                        ))}
+
+                                        {expiredGroupedProblems.length > 0 && (
+                                            <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-200">
+                                                Expired Problems
+                                            </div>
+                                        )}
+                                        {expiredGroupedProblems.map((group) => (
+                                            <div key={`expired-${group.eventId || group.eventTitle}`} className="rounded-xl border border-white/10 bg-black/30 p-4">
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                    <div>
+                                                        <h3 className="text-sm font-semibold text-white">{group.eventTitle}</h3>
+                                                        <p className="mt-1 text-xs text-white/60">{group.problems.length} expired problem(s)</p>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-3 overflow-x-auto">
+                                                    <table className="w-full min-w-[1080px] text-left text-sm">
+                                                        <thead className="text-white/60">
+                                                            <tr>
+                                                                <th className="py-2 pr-3">Event</th>
+                                                                <th className="py-2 pr-3">Title</th>
+                                                                <th className="py-2 pr-3">Difficulty</th>
+                                                                <th className="py-2 pr-3">Points</th>
+                                                                <th className="py-2 pr-3">Status</th>
+                                                                <th className="py-2 pr-3">Expired At</th>
+                                                                <th className="py-2 pr-3">Updated</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {group.problems.map((problem) => (
+                                                                <tr key={problem.id} className="border-t border-white/10">
+                                                                    <td className="py-2 pr-3 text-white/80">{resolveProblemEventTitle(problem)}</td>
+                                                                    <td className="py-2 pr-3 text-white">{problem.title}</td>
+                                                                    <td className="py-2 pr-3 text-white/80">{problem.difficulty}</td>
+                                                                    <td className="py-2 pr-3 text-white/80">{problem.totalPoints}</td>
+                                                                    <td className="py-2 pr-3 text-white/80"><span className="rounded bg-red-500/20 px-2 py-1 text-[11px] text-red-200">Expired</span></td>
+                                                                    <td className="py-2 pr-3 text-white/70">{fmtDateTime(problem.expiredAt)}</td>
+                                                                    <td className="py-2 pr-3 text-white/70">{fmtDateTime(problem.updatedAt)}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </>
                                 )}
                             </div>
 
@@ -1916,6 +1988,8 @@ export default function AdminDashboard() {
                                                         <p className="mt-1 text-xs text-white/70">{evt.description || "No description"}</p>
                                                         <p className="mt-1 text-xs text-cyan-200">{fmtDateTime(evt.startAt)} {"->"} {fmtDateTime(evt.endAt)}</p>
                                                         <p className="mt-1 text-xs text-amber-200/90">Duration: {fmtEventDuration(evt.startAt, evt.endAt)}</p>
+                                                        <p className="mt-1 text-xs text-emerald-200/90">Countdown: {formatCountdown(evt.endAt, clockMs)}</p>
+                                                        <p className="mt-1 text-xs text-cyan-200/80">Status: {String(evt.status || "upcoming")}</p>
                                                         <div className="mt-2 flex flex-wrap items-center gap-2">
                                                             <span className="text-[11px] uppercase tracking-widest text-white/55">Event Code</span>
                                                             <code className="rounded bg-black/50 px-2 py-1 text-xs text-emerald-200">{evt.id}</code>
@@ -2669,44 +2743,8 @@ export default function AdminDashboard() {
                                 </div>
                             </div>
 
-                            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                                <h2 className="text-lg font-semibold">Role Change Requests Approval</h2>
-                                <p className="mt-1 text-sm text-white/70">
-                                    Approve or reject pending role change requests.
-                                </p>
-                                <div className="mt-3 max-h-[360px] space-y-2 overflow-auto pr-1">
-                                    {roleRequests.length === 0 ? (
-                                        <p className="text-sm text-white/70">No pending requests.</p>
-                                    ) : (
-                                        roleRequests.map((item) => (
-                                            <div key={item.id} className="rounded-lg border border-white/10 bg-black/30 p-3">
-                                                <p className="text-sm font-semibold text-white">{item.user?.name} ({item.user?.email})</p>
-                                                <p className="mt-1 text-xs text-white/70">
-                                                    {item.currentRole} {"->"} {item.requestedRole}
-                                                </p>
-                                                <p className="mt-1 text-xs text-white/60">Reason: {item.reason || "No reason provided"}</p>
-                                                <div className="mt-2 flex items-center gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleReviewRoleRequest(item.id, "approved")}
-                                                        className="rounded border border-emerald-400/40 px-2 py-1 text-xs text-emerald-200"
-                                                    >
-                                                        Approve
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleReviewRoleRequest(item.id, "rejected")}
-                                                        className="rounded border border-red-400/40 px-2 py-1 text-xs text-red-200"
-                                                    >
-                                                        Reject
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
                         </div>
+
 
                         <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
                             <h2 className="text-lg font-semibold">Admin Action Audit Log</h2>
@@ -3104,7 +3142,7 @@ export default function AdminDashboard() {
                                                 className="mt-2 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none"
                                             >
                                                 <option value="" style={{ color: "#000" }}>Use eventId from file rows</option>
-                                                {problemEvents.map((evt) => (
+                                                {selectableProblemEvents.map((evt) => (
                                                     <option key={evt.id} value={evt.id} style={{ color: "#000" }}>
                                                         {evt.title}
                                                     </option>

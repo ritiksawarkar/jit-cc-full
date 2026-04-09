@@ -4,7 +4,6 @@ import {
   login,
   forgotPassword,
   resetPassword,
-  requestRoleChange,
 } from "../controllers/authController.js";
 import { requireAuth } from "../middleware/authMiddleware.js";
 import { requireRole } from "../middleware/roleMiddleware.js";
@@ -25,9 +24,6 @@ router.post("/forgot-password", forgotPassword);
 
 // POST /api/auth/reset-password
 router.post("/reset-password", resetPassword);
-
-// POST /api/auth/role-requests
-router.post("/role-requests", requireAuth, requestRoleChange);
 
 // GET /api/auth/me
 router.get("/me", requireAuth, (req, res) => {

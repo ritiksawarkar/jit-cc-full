@@ -9,9 +9,12 @@
     "start": "nodemon index.js",
     "seed:admin": "node scripts/seedAdmin.js",
     "seed:demo-certificate": "node scripts/seedDemoCertificate.js",
+    "seed:sample-data": "node scripts/seedRandomSampleData.js",
     "seed:jit-hackathon": "node scripts/seedRandomHackathon.js",
     "migrate:problem-events": "node scripts/migrateProblemEventRelation.js",
-    "dedupe:problem-titles": "node scripts/dedupeProblemTitles.js"
+    "dedupe:problem-titles": "node scripts/dedupeProblemTitles.js",
+    "purge:role-requests": "node scripts/purgeRoleChangeRequests.js",
+    "cleanup:old-demo": "node scripts/cleanupOldDemoData.js"
   },
   "dependencies": {
     "@google/genai": "^1.21.0",
@@ -23,6 +26,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.23.0",
     "morgan": "^1.10.0",
+    "node-cron": "^4.2.1",
     "nodemailer": "^6.10.1",
     "nodemon": "^3.1.10"
   },
